@@ -1,0 +1,56 @@
+# FastAPI core
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+# Database
+sqlalchemy==2.0.31
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Auth & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.3
+
+# AI & ML
+openai==1.35.3
+tiktoken==0.7.0
+langchain==0.2.6
+langchain-openai==0.1.14
+
+# Resume Parsing
+PyMuPDF==1.24.5
+python-docx==1.1.2
+pdfplumber==0.11.1
+
+# Browser Automation
+playwright==1.44.0
+playwright-stealth==1.0.6
+
+# Web Scraping
+beautifulsoup4==4.12.3
+httpx==0.27.0
+aiohttp==3.9.5
+lxml==5.2.2
+scrapy==2.11.2
+
+# Background Tasks
+celery==5.4.0
+redis==5.0.7
+flower==2.0.1
+
+# Email
+aiosmtplib==3.0.1
+
+# Utils
+python-dotenv==1.0.1
+pydantic==2.7.4
+pydantic-settings==2.3.4
+python-dateutil==2.9.0
+validators==0.28.3
+
+# File handling
+aiofiles==23.2.1
+pillow==10.4.0

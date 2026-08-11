@@ -1,0 +1,15 @@
+{
+  "name": "jobpilot-whatsapp-service",
+  "version": "1.0.0",
+  "description": "WhatsApp Web linking service for JobPilot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "qrcode": "^1.5.3",
+    "whatsapp-web.js": "^1.34.7"
+  }
+}
