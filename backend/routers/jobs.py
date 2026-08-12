@@ -10,6 +10,7 @@ from models.job import Job
 from models.application import Application
 from utils.security import get_current_user
 from services.job_matcher import JobMatcherService
+from services.job_relevance_agent import get_relevance_agent
 import uuid
 import asyncio
 from datetime import datetime, timezone
@@ -702,7 +703,38 @@ _make_platform_daemon_endpoints("naukri")
 _make_platform_daemon_endpoints("wellfound")
 
 
+async def _build_user_profile_for_relevance(user: User, db: AsyncSession) -> dict:
+    """Build a rich user profile dict for the JobRelevanceAgent.
+    Fetches skills from the user's primary parsed resume if available.
+    """
+    from models.resume import Resume
+    skills = []
+    try:
+        resume_res = await db.execute(
+            select(Resume).where(
+                Resume.user_id == user.id,
+                Resume.is_primary == True,
+                Resume.parse_status == "done"
+            )
+        )
+        resume = resume_res.scalar_one_or_none()
+        if resume and resume.parsed_data:
+            skills = resume.parsed_data.get("skills", []) or []
+            if not isinstance(skills, list):
+                skills = []
+    except Exception as e:
+        print(f"[RelevanceAgent] Could not fetch resume skills: {e}")
+
+    return {
+        "target_roles": user.target_roles or "",
+        "skills": skills[:40],
+        "years_of_experience": user.years_of_experience,
+        "target_locations": user.target_locations or user.location or "",
+    }
+
+
 @router.post("/linkedin/sync-live")
+
 async def sync_live_jobs(
     data: LiveJobsSyncRequest,
     background_tasks: BackgroundTasks,
@@ -713,10 +745,22 @@ async def sync_live_jobs(
     from services.recruiter_tracker import extract_and_save
     import uuid
 
+    # ── AI Relevance Gate ──────────────────────────────────────────────────
+    user_profile = await _build_user_profile_for_relevance(current_user, db)
+    relevance_agent = get_relevance_agent()
+    validated_jobs = await relevance_agent.validate_batch(
+        [dict(j) for j in data.jobs], user_profile
+    )
+    relevant_jobs = [j for j in validated_jobs if j.get("ai_relevant", True)]
+    filtered_count = len(data.jobs) - len(relevant_jobs)
+    if filtered_count:
+        print(f"[LinkedIn Sync] AI filtered {filtered_count}/{len(data.jobs)} irrelevant jobs")
+    # ──────────────────────────────────────────────────────────────────────
+
     job_ids = []
     new_jobs_count = 0
 
-    for item in data.jobs:
+    for item in relevant_jobs:
         url_clean = item["link"].split("?")[0] if item.get("link") else ""
         db_job_res = await db.execute(
             select(Job).where(
@@ -729,16 +773,33 @@ async def sync_live_jobs(
         job = db_job_res.scalar_one_or_none()
 
         if not job:
+            # Use AI-extracted experience range in the description for the matcher
+            exp_min = item.get("ai_extracted_exp_min")
+            exp_max = item.get("ai_extracted_exp_max")
+            exp_desc = ""
+            if exp_min is not None and exp_max is not None:
+                exp_desc = f"Experience required: {exp_min}-{exp_max} years. "
+            elif exp_min is not None:
+                exp_desc = f"Experience required: {exp_min}+ years. "
+
+            skills_extracted = item.get("ai_extracted_skills") or []
+
             job = Job(
                 id=str(uuid.uuid4()),
-                title=item["title"],
+                title=item.get("ai_extracted_title") or item["title"],
                 company=item["company"],
-                location=item["location"],
+                location=item.get("location", ""),
                 url=item["link"],
                 apply_url=item["link"],
                 source="linkedin",
                 is_active=True,
-                description=f"LinkedIn live job post. Location: {item['location']}. Posted: {item.get('posted_time', '')}",
+                skills_required=skills_extracted if skills_extracted else None,
+                description=(
+                    f"LinkedIn live job post. {exp_desc}"
+                    f"Location: {item.get('location', '')}. "
+                    f"Posted: {item.get('posted_time', '')}. "
+                    f"AI Relevance: {item.get('ai_reason', '')}"
+                ),
             )
             db.add(job)
             await db.flush()
@@ -758,7 +819,12 @@ async def sync_live_jobs(
 
     await db.commit()
     background_tasks.add_task(send_alerts_bg, job_ids, current_user.id)
-    return {"message": f"Successfully synced {len(data.jobs)} jobs. {new_jobs_count} new jobs added."}
+    return {
+        "message": (
+            f"Successfully synced {len(relevant_jobs)} relevant LinkedIn jobs "
+            f"({filtered_count} filtered by AI). {new_jobs_count} new jobs added."
+        )
+    }
 
 
 async def analyze_post_with_ai(content: str) -> dict:
@@ -857,14 +923,57 @@ async def sync_live_posts(
             "new_recruiters_extracted": 0
         }
 
-    # Run AI analysis in parallel
+    # Run AI analysis in parallel (genuineness check)
     tasks = [analyze_post_with_ai(item.get("content_preview", "")) for item in candidate_posts]
     analyses = await asyncio.gather(*tasks)
 
+    # Filter to genuine job posts first
+    genuine_posts = []
+    genuine_analyses = []
     for item, analysis in zip(candidate_posts, analyses):
         if not analysis.get("is_genuine_job", True):
             print(f"[AI Filter] Skipping non-genuine/editorial post by {item.get('author')}")
             continue
+        genuine_posts.append(item)
+        genuine_analyses.append(analysis)
+
+    # ── Role relevance gate via JobRelevanceAgent ──────────────────────────
+    if genuine_posts:
+        user_profile = await _build_user_profile_for_relevance(current_user, db)
+        # Enrich posts with role info extracted from the first AI pass
+        posts_for_relevance = []
+        for item, analysis in zip(genuine_posts, genuine_analyses):
+            enriched = dict(item)
+            enriched["title"] = analysis.get("role") or item.get("author", "")
+            enriched["content_preview"] = item.get("content_preview", "") + (
+                f" Role: {analysis.get('role', '')}. "
+                f"Experience: {analysis.get('experience_required', '')}."
+            )
+            posts_for_relevance.append(enriched)
+
+        relevance_agent = get_relevance_agent()
+        validated_posts = await relevance_agent.validate_batch(posts_for_relevance, user_profile)
+
+        # Rebuild lists with only relevant posts
+        final_posts = []
+        final_analyses = []
+        for validated, original_item, analysis in zip(validated_posts, genuine_posts, genuine_analyses):
+            if validated.get("ai_relevant", True):
+                final_posts.append(original_item)
+                final_analyses.append(analysis)
+            else:
+                print(f"[Role Filter] Skipping off-target post by {original_item.get('author')}: {validated.get('ai_reason', '')}")
+
+        post_relevance_filtered = len(genuine_posts) - len(final_posts)
+        if post_relevance_filtered:
+            print(f"[Posts Sync] Role-relevance gate filtered {post_relevance_filtered} off-target posts")
+    else:
+        final_posts = []
+        final_analyses = []
+    # ──────────────────────────────────────────────────────────────────────
+
+    for item, analysis in zip(final_posts, final_analyses):
+
 
         post_link = item.get("link") or ""
         summary = analysis.get("summary") or item.get("content_preview", "")
@@ -1035,10 +1144,28 @@ async def sync_naukri_live(
     from services.recruiter_tracker import extract_and_save
     import uuid
 
+    # ── AI Relevance Gate ──────────────────────────────────────────────────
+    user_profile = await _build_user_profile_for_relevance(current_user, db)
+    # Enrich job content with Naukri experience field for AI analysis
+    jobs_for_ai = []
+    for j in data.jobs:
+        jd = dict(j)
+        if j.get("experience"):
+            jd["content_preview"] = f"Role: {j.get('title')}. Experience: {j.get('experience')}. Location: {j.get('location', '')}."
+        jobs_for_ai.append(jd)
+
+    relevance_agent = get_relevance_agent()
+    validated_jobs = await relevance_agent.validate_batch(jobs_for_ai, user_profile)
+    relevant_jobs = [j for j in validated_jobs if j.get("ai_relevant", True)]
+    filtered_count = len(data.jobs) - len(relevant_jobs)
+    if filtered_count:
+        print(f"[Naukri Sync] AI filtered {filtered_count}/{len(data.jobs)} irrelevant jobs")
+    # ──────────────────────────────────────────────────────────────────────
+
     job_ids = []
     new_jobs_count = 0
 
-    for item in data.jobs:
+    for item in relevant_jobs:
         url_clean = item["link"].split("?")[0] if item.get("link") else ""
         db_job_res = await db.execute(
             select(Job).where(
@@ -1051,18 +1178,35 @@ async def sync_naukri_live(
         job = db_job_res.scalar_one_or_none()
 
         if not job:
-            exp_text = item.get("experience", "")
-            exp_desc = f"Experience required: {exp_text}. " if exp_text else ""
+            # Prefer AI-extracted experience over raw scraper text
+            exp_min = item.get("ai_extracted_exp_min")
+            exp_max = item.get("ai_extracted_exp_max")
+            if exp_min is not None and exp_max is not None:
+                exp_desc = f"Experience required: {exp_min}-{exp_max} years. "
+            elif exp_min is not None:
+                exp_desc = f"Experience required: {exp_min}+ years. "
+            else:
+                raw_exp = item.get("experience", "")
+                exp_desc = f"Experience required: {raw_exp}. " if raw_exp else ""
+
+            skills_extracted = item.get("ai_extracted_skills") or []
+
             job = Job(
                 id=str(uuid.uuid4()),
-                title=item["title"],
+                title=item.get("ai_extracted_title") or item["title"],
                 company=item["company"],
-                location=item["location"],
+                location=item.get("location", ""),
                 url=item["link"],
                 apply_url=item["link"],
                 source="naukri",
                 is_active=True,
-                description=f"Naukri live job post. {exp_desc}Location: {item['location']}. Posted: {item.get('posted_time', '')}",
+                skills_required=skills_extracted if skills_extracted else None,
+                description=(
+                    f"Naukri live job post. {exp_desc}"
+                    f"Location: {item.get('location', '')}. "
+                    f"Posted: {item.get('posted_time', '')}. "
+                    f"AI Relevance: {item.get('ai_reason', '')}"
+                ),
             )
             db.add(job)
             await db.flush()
@@ -1082,7 +1226,12 @@ async def sync_naukri_live(
 
     await db.commit()
     background_tasks.add_task(send_alerts_bg, job_ids, current_user.id)
-    return {"message": f"Successfully synced {len(data.jobs)} Naukri jobs. {new_jobs_count} new jobs added."}
+    return {
+        "message": (
+            f"Successfully synced {len(relevant_jobs)} relevant Naukri jobs "
+            f"({filtered_count} filtered by AI). {new_jobs_count} new jobs added."
+        )
+    }
 
 
 @router.post("/wellfound/sync-live")
@@ -1096,10 +1245,28 @@ async def sync_wellfound_live(
     from services.recruiter_tracker import extract_and_save
     import uuid
 
+    # ── AI Relevance Gate ──────────────────────────────────────────────────
+    user_profile = await _build_user_profile_for_relevance(current_user, db)
+    # Enrich Wellfound items with parsed experience range for AI context
+    jobs_for_ai = []
+    for j in data.jobs:
+        jd = dict(j)
+        if j.get("experience"):
+            jd["content_preview"] = f"Role: {j.get('title')}. Experience: {j.get('experience')}. Location: {j.get('location', '')}. Company: {j.get('company', '')}."
+        jobs_for_ai.append(jd)
+
+    relevance_agent = get_relevance_agent()
+    validated_jobs = await relevance_agent.validate_batch(jobs_for_ai, user_profile)
+    relevant_jobs = [j for j in validated_jobs if j.get("ai_relevant", True)]
+    filtered_count = len(data.jobs) - len(relevant_jobs)
+    if filtered_count:
+        print(f"[Wellfound Sync] AI filtered {filtered_count}/{len(data.jobs)} irrelevant jobs")
+    # ──────────────────────────────────────────────────────────────────────
+
     job_ids = []
     new_jobs_count = 0
 
-    for item in data.jobs:
+    for item in relevant_jobs:
         url_clean = item["link"].split("?")[0] if item.get("link") else ""
         db_job_res = await db.execute(
             select(Job).where(
@@ -1112,18 +1279,35 @@ async def sync_wellfound_live(
         job = db_job_res.scalar_one_or_none()
 
         if not job:
-            exp_text = item.get("experience", "")
-            exp_desc = f"Experience required: {exp_text}. " if exp_text else ""
+            # Use AI-extracted experience if available, fall back to scraper range
+            exp_min = item.get("ai_extracted_exp_min")
+            exp_max = item.get("ai_extracted_exp_max")
+            if exp_min is not None and exp_max is not None:
+                exp_desc = f"Experience required: {exp_min}-{exp_max} years. "
+            elif exp_min is not None:
+                exp_desc = f"Experience required: {exp_min}+ years. "
+            else:
+                raw_exp = item.get("experience", "")
+                exp_desc = f"Experience required: {raw_exp}. " if raw_exp else ""
+
+            skills_extracted = item.get("ai_extracted_skills") or []
+
             job = Job(
                 id=str(uuid.uuid4()),
-                title=item["title"],
+                title=item.get("ai_extracted_title") or item["title"],
                 company=item["company"],
-                location=item["location"],
+                location=item.get("location", ""),
                 url=item["link"],
                 apply_url=item["link"],
                 source="wellfound",
                 is_active=True,
-                description=f"Wellfound live job post. {exp_desc}Location: {item['location']}. Posted: {item.get('posted_time', '')}",
+                skills_required=skills_extracted if skills_extracted else None,
+                description=(
+                    f"Wellfound live job post. {exp_desc}"
+                    f"Location: {item.get('location', '')}. "
+                    f"Posted: {item.get('posted_time', '')}. "
+                    f"AI Relevance: {item.get('ai_reason', '')}"
+                ),
             )
             db.add(job)
             await db.flush()
@@ -1143,7 +1327,12 @@ async def sync_wellfound_live(
 
     await db.commit()
     background_tasks.add_task(send_alerts_bg, job_ids, current_user.id)
-    return {"message": f"Successfully synced {len(data.jobs)} Wellfound jobs. {new_jobs_count} new jobs added."}
+    return {
+        "message": (
+            f"Successfully synced {len(relevant_jobs)} relevant Wellfound jobs "
+            f"({filtered_count} filtered by AI). {new_jobs_count} new jobs added."
+        )
+    }
 
 
 @router.get("/export/excel")
