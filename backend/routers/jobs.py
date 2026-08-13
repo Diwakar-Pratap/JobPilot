@@ -483,6 +483,34 @@ async def daemon_status(
     }
 
 
+def _kill_orphaned_daemons(platform: str):
+    """Kill any orphaned linkedin_live_browser.py processes for the given platform.
+    This is needed when the backend restarts and app.state is cleared but old
+    daemon processes are still running, preventing Chrome from opening again."""
+    import subprocess, sys
+    try:
+        import psutil
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                cmdline = proc.info.get("cmdline") or []
+                cmdline_str = " ".join(cmdline)
+                if "linkedin_live_browser.py" in cmdline_str and f"--platform {platform}" in cmdline_str:
+                    print(f"[DaemonStart] Killing orphaned {platform} daemon PID {proc.pid}")
+                    proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except ImportError:
+        # psutil not available: fall back to taskkill on Windows
+        if sys.platform == "win32":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/FI", f"WINDOWTITLE eq *linkedin_live_browser*"],
+                    capture_output=True
+                )
+            except Exception:
+                pass
+
+
 @router.post("/linkedin/daemon-start")
 async def daemon_start(
     request: Request,
@@ -493,12 +521,15 @@ async def daemon_start(
     import sys
     import os
 
-    if hasattr(request.app.state, "linkedin_daemon_processes"):
-        proc = request.app.state.linkedin_daemon_processes.get(current_user.id)
-        if proc and proc.poll() is None:
-            return {"message": "Daemon browser is already running"}
-    else:
+    if not hasattr(request.app.state, "linkedin_daemon_processes"):
         request.app.state.linkedin_daemon_processes = {}
+
+    proc = request.app.state.linkedin_daemon_processes.get(current_user.id)
+    if proc and proc.poll() is None:
+        return {"message": "Daemon browser is already running"}
+
+    # Kill any orphaned daemons left from a previous server session
+    _kill_orphaned_daemons("linkedin")
 
     from utils.security import create_access_token
     token = create_access_token({"sub": current_user.id})
@@ -620,6 +651,9 @@ def _make_platform_daemon_endpoints(platform: str):
         proc = getattr(request.app.state, state_key).get(current_user.id)
         if proc and proc.poll() is None:
             return {"message": f"{platform.title()} daemon is already running"}
+
+        # Kill any orphaned daemons left from a previous server session
+        _kill_orphaned_daemons(platform)
 
         from utils.security import create_access_token
         token = create_access_token({"sub": current_user.id})
