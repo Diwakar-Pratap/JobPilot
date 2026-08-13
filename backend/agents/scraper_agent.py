@@ -605,7 +605,7 @@ If no jobs found: {{"jobs": []}}"""
                             title=title,
                             company=company_name,
                             company_logo=logo_url,
-                            location=raw_job.get("location"),
+                            location=", ".join(raw_job["location"]) if isinstance(raw_job.get("location"), list) else raw_job.get("location"),
                             description=raw_job.get("description"),
                             url=raw_job.get("url") or career_url,
                             apply_url=raw_job.get("apply_url") or raw_job.get("url") or career_url,
