@@ -52,6 +52,11 @@ class ScraperAgent:
             timeout=30,
         )
 
+    # Shared semaphore: max 3 scrapers may write to SQLite at the same time.
+    # SQLite supports only one writer at a time; WAL + this semaphore prevents
+    # the "database is locked" cascade when many companies are scraped in parallel.
+    _db_write_sem = asyncio.Semaphore(3)
+
     # ────────────────────────────────────────────────────────────────────────
     # ATS-SPECIFIC SCRAPERS
     # ────────────────────────────────────────────────────────────────────────
@@ -549,7 +554,8 @@ If no jobs found: {{"jobs": []}}"""
                 career_url = company.career_url
                 logo_url = company.logo_url
                 company.scrape_status = "scraping"
-                await db.commit()
+                async with ScraperAgent._db_write_sem:
+                    await db.commit()
 
             # Detect ATS and scrape
             ats_type, ats_id = await self.detect_ats_type(career_url)

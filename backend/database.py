@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, event
+from sqlalchemy.pool import StaticPool
 from config import settings
 
 # Naming convention for constraints (useful for alembic)
@@ -14,12 +15,17 @@ convention = {
 
 metadata = MetaData(naming_convention=convention)
 
-# Engine arguments (pool parameters are not supported by SQLite)
+# Engine arguments
 engine_args = {
     "echo": settings.DEBUG,
 }
 
-if not settings.DATABASE_URL.startswith("sqlite"):
+if settings.DATABASE_URL.startswith("sqlite"):
+    # SQLite-specific: use StaticPool for asyncio compatibility + busy timeout
+    # timeout=30 means SQLite will retry for 30 seconds before raising "database is locked"
+    engine_args["connect_args"] = {"timeout": 30, "check_same_thread": False}
+    engine_args["poolclass"] = StaticPool
+else:
     engine_args["pool_pre_ping"] = True
     engine_args["pool_size"] = 10
     engine_args["max_overflow"] = 20
@@ -28,6 +34,20 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     **engine_args
 )
+
+# For SQLite: enable WAL mode on every new connection.
+# WAL (Write-Ahead Logging) allows concurrent reads and one writer without
+# blocking each other, dramatically reducing "database is locked" errors.
+if settings.DATABASE_URL.startswith("sqlite"):
+    from sqlalchemy import event as _event
+
+    @_event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=30000")  # 30 seconds in ms
+        cursor.close()
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
