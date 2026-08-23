@@ -396,7 +396,16 @@ Return ONLY valid JSON."""
                 if user:
                     inferred_roles = ai_profile.get("target_roles", []) or parsed_data.get("preferred_roles", [])
                     if inferred_roles:
-                        user.target_roles = ", ".join(inferred_roles)
+                        if user.target_roles:
+                            existing_roles = [r.strip() for r in user.target_roles.split(',') if r.strip()]
+                            # Merge keeping existing roles first, then inferred roles, removing duplicates
+                            merged = existing_roles.copy()
+                            for ir in inferred_roles:
+                                if ir not in merged:
+                                    merged.append(ir)
+                            user.target_roles = ", ".join(merged)
+                        else:
+                            user.target_roles = ", ".join(inferred_roles)
                     inferred_locations = parsed_data.get("preferred_locations", [])
                     if inferred_locations:
                         user.target_locations = ", ".join(inferred_locations)
