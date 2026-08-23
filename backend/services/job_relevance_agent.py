@@ -21,7 +21,7 @@ from config import settings
 # ─────────────────────────────────────────────────────────────────────────────
 
 RELEVANCE_PROMPT_TEMPLATE = """\
-You are a job relevance validator for an AI-powered job matching platform.
+You are a highly analytical AI job relevance validator.
 
 CANDIDATE PROFILE:
 - Target Roles: {target_roles}
@@ -32,16 +32,15 @@ CANDIDATE PROFILE:
 SCRAPED JOBS (JSON array - each item has an "id" and post "content"):
 {jobs_json}
 
-For EACH job, evaluate whether it is genuinely relevant to this candidate.
-A job is relevant if:
-  1. The role matches or is closely related to the candidate's target roles / skills
-  2. The experience requirement is compatible with the candidate's years of experience
-     (allow +-2 years tolerance: job_min - 2 <= candidate_exp <= job_max + 2)
-  3. It is an actual open position - NOT: thought-leadership articles, candidate
-     self-promotion posts, generic advice, or unrelated job ads
+For EACH job, thoroughly evaluate whether it is genuinely relevant to this candidate.
+A job is relevant if AND ONLY IF:
+  1. Role Match: The job title/requirements closely match the candidate's target roles and skills.
+  2. Genuine Job: It is an actual, open job vacancy. It MUST NOT be a generic thought-leadership article, a candidate looking for a job, a promotional post, or recruiter spam.
+  3. Experience Match: The experience requirement is compatible with the candidate's years of experience (allow +-2 years tolerance). If the post doesn't state explicit years, infer the seniority (Junior/Mid/Senior) from the description and compare it to the candidate's profile.
+  4. Internship Filter: If the post is for an Internship or Trainee role, REJECT IT unless the candidate's target roles explicitly include "Intern", "Internship", or "Fresher", OR the candidate has 0 years of experience.
 
 Return a JSON array (same length and order as input) where each element is:
-{{"id": <same id as input>, "is_relevant": true/false, "extracted_title": "<the true job title from the content>", "extracted_exp_min": <integer or null>, "extracted_exp_max": <integer or null, use 99 for open-ended like 5+ years>, "extracted_skills": ["skill1", "skill2"], "relevance_reason": "<one sentence explaining why relevant or not>"}}
+{{"id": <same id as input>, "is_relevant": true/false, "extracted_title": "<the true job title from the content>", "extracted_exp_min": <integer or null>, "extracted_exp_max": <integer or null, use 99 for open-ended>, "extracted_skills": ["skill1", "skill2"], "is_internship": true/false, "is_genuine_job": true/false, "relevance_reason": "<detailed sentence explaining your decision based on requirements, experience, and genuineness>"}}
 
 Return ONLY a valid JSON array. No markdown, no explanation outside the array.\
 """

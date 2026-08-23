@@ -221,16 +221,13 @@ async def sync_live_jobs(
     validated_jobs = await relevance_agent.validate_batch(
         [dict(j) for j in data.jobs], user_profile
     )
-    relevant_jobs = [j for j in validated_jobs if j.get("ai_relevant", True)]
-    filtered_count = len(data.jobs) - len(relevant_jobs)
-    if filtered_count:
-        print(f"[LinkedIn Sync] AI filtered {filtered_count}/{len(data.jobs)} irrelevant jobs")
-    # ──────────────────────────────────────────────────────────────────────
-
     job_ids = []
     new_jobs_count = 0
+    filtered_count = len([j for j in validated_jobs if not j.get("ai_relevant", True)])
+    if filtered_count:
+        print(f"[LinkedIn Sync] AI filtered {filtered_count}/{len(data.jobs)} irrelevant jobs (saved as inactive)")
 
-    for item in relevant_jobs:
+    for item in validated_jobs:
         url_clean = item["link"].split("?")[0] if item.get("link") else ""
         db_job_res = await db.execute(
             select(Job).where(
@@ -254,7 +251,13 @@ async def sync_live_jobs(
 
             skills_extracted = item.get("ai_extracted_skills") or []
 
+            is_relevant = item.get("ai_relevant", True)
+            reason = item.get("ai_reason", "")
+            if not is_relevant:
+                exp_desc += f"\n\n[AI REJECTED]: {reason}"
+
             job = Job(
+                is_active=is_relevant,
                 id=str(uuid.uuid4()),
                 title=item.get("ai_extracted_title") or item["title"],
                 company=item["company"],
