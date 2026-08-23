@@ -289,6 +289,9 @@ async def sync_live_jobs(
 
     await db.commit()
     background_tasks.add_task(send_alerts_bg, job_ids, current_user.id)
+    from utils.excel_exporter import auto_export_scraped_jobs_to_excel
+    import asyncio
+    asyncio.create_task(auto_export_scraped_jobs_to_excel(current_user.id))
     return {
         "message": (
             f"Successfully synced {len(relevant_jobs)} relevant LinkedIn jobs "
