@@ -392,6 +392,18 @@ export default function WhatsAppPage() {
         >
           📈 Link Click Tracker
         </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '10px 16px', fontSize: '14px', fontWeight: 600,
+              color: activeTab === 'email' ? '#25d366' : 'var(--text-muted)',
+              borderBottom: activeTab === 'email' ? '2px solid #25d366' : '2px solid transparent',
+              transition: 'all 0.2s',
+            }}
+          >
+            📧 Email Config
+          </button>
       </div>
 
       {/* ── Tab 1: WhatsApp Web Simulator ── */}
@@ -426,6 +438,10 @@ export default function WhatsAppPage() {
           shares={shares} handleUpdateStatus={handleUpdateStatus} 
         />
       )}
+
+        {activeTab === 'email' && (
+          <EmailConfig />
+        )}
 
       {/* Toast */}
       {toast && (
