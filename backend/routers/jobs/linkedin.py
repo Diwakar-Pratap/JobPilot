@@ -265,7 +265,6 @@ async def sync_live_jobs(
                 url=item["link"],
                 apply_url=item["link"],
                 source="linkedin",
-                is_active=True,
                 skills_required=skills_extracted if skills_extracted else None,
                 description=(
                     f"LinkedIn live job post. {exp_desc}"
