@@ -11,6 +11,9 @@ interface WhatsAppContact {
   id: string;
   name: string;
   phone: string;
+    email: string | null;
+    notify_via_whatsapp: boolean;
+    notify_via_email: boolean;
   is_active: boolean;
   notify_new_jobs: boolean;
   notify_high_match: boolean;
@@ -45,6 +48,9 @@ export default function WhatsAppPage() {
   // Form state
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [notifyViaWhatsapp, setNotifyViaWhatsapp] = useState(true);
+  const [notifyViaEmail, setNotifyViaEmail] = useState(false);
   const [notifyNewJobs, setNotifyNewJobs] = useState(true);
   const [notifyHighMatch, setNotifyHighMatch] = useState(true);
   const [matchThreshold, setMatchThreshold] = useState(70);
@@ -243,7 +249,7 @@ export default function WhatsAppPage() {
   };
 
   const resetForm = () => {
-    setName(''); setPhone(''); setNotifyNewJobs(true);
+    setName(''); setPhone(''); setEmail(''); setNotifyViaWhatsapp(true); setNotifyViaEmail(false); setNotifyNewJobs(true);
     setNotifyHighMatch(true); setMatchThreshold(70);
     setShowAdd(false); setEditId(null);
   };
@@ -251,7 +257,7 @@ export default function WhatsAppPage() {
   const handleSubmit = async () => {
     if (!name.trim() || !phone.trim()) { showToast('❌ Name and phone are required'); return; }
     const token = getToken();
-    const body = { name, phone, notify_new_jobs: notifyNewJobs, notify_high_match: notifyHighMatch, match_threshold: matchThreshold };
+    const body = { name, phone, email, notify_via_whatsapp: notifyViaWhatsapp, notify_via_email: notifyViaEmail, notify_new_jobs: notifyNewJobs, notify_high_match: notifyHighMatch, match_threshold: matchThreshold };
 
     try {
       let res;
@@ -329,7 +335,7 @@ export default function WhatsAppPage() {
   };
 
   const startEdit = (c: WhatsAppContact) => {
-    setEditId(c.id); setName(c.name); setPhone(c.phone);
+    setEditId(c.id); setName(c.name); setPhone(c.phone); setEmail(c.email || ''); setNotifyViaWhatsapp(c.notify_via_whatsapp ?? true); setNotifyViaEmail(c.notify_via_email ?? false);
     setNotifyNewJobs(c.notify_new_jobs); setNotifyHighMatch(c.notify_high_match);
     setMatchThreshold(c.match_threshold); setShowAdd(true);
   };
@@ -340,10 +346,10 @@ export default function WhatsAppPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: '22px', fontWeight: 700, color: 'var(--text-heavy)', marginBottom: '4px' }}>
-            💬 WhatsApp Integration
+            🔔 Notification Alerts
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-            Link your WhatsApp account and manage contacts to receive live job matching updates
+            Link your account and manage contacts to receive live job matching updates via WhatsApp or Email
           </p>
         </div>
       </div>
@@ -402,6 +408,9 @@ export default function WhatsAppPage() {
         <WhatsAppContacts 
           showAdd={showAdd} setShowAdd={setShowAdd} resetForm={resetForm} editId={editId}
           name={name} setName={setName} phone={phone} setPhone={setPhone}
+          email={email} setEmail={setEmail}
+          notifyViaWhatsapp={notifyViaWhatsapp} setNotifyViaWhatsapp={setNotifyViaWhatsapp}
+          notifyViaEmail={notifyViaEmail} setNotifyViaEmail={setNotifyViaEmail}
           notifyNewJobs={notifyNewJobs} setNotifyNewJobs={setNotifyNewJobs}
           notifyHighMatch={notifyHighMatch} setNotifyHighMatch={setNotifyHighMatch}
           matchThreshold={matchThreshold} setMatchThreshold={setMatchThreshold}

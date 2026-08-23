@@ -7,6 +7,9 @@ export interface WhatsAppContactsProps {
   editId: string | null;
   name: string; setName: (v: string) => void;
   phone: string; setPhone: (v: string) => void;
+  email: string; setEmail: (v: string) => void;
+  notifyViaWhatsapp: boolean; setNotifyViaWhatsapp: (v: boolean) => void;
+  notifyViaEmail: boolean; setNotifyViaEmail: (v: boolean) => void;
   notifyNewJobs: boolean; setNotifyNewJobs: (v: boolean) => void;
   notifyHighMatch: boolean; setNotifyHighMatch: (v: boolean) => void;
   matchThreshold: number; setMatchThreshold: (v: number) => void;
@@ -20,7 +23,7 @@ export interface WhatsAppContactsProps {
 }
 
 export const WhatsAppContacts: React.FC<WhatsAppContactsProps> = ({
-  showAdd, setShowAdd, resetForm, editId, name, setName, phone, setPhone,
+  showAdd, setShowAdd, resetForm, editId, name, setName, phone, setPhone, email, setEmail, notifyViaWhatsapp, setNotifyViaWhatsapp, notifyViaEmail, setNotifyViaEmail,
   notifyNewJobs, setNotifyNewJobs, notifyHighMatch, setNotifyHighMatch, matchThreshold, setMatchThreshold,
   handleSubmit, loading, contacts, toggleActive, sendTest, startEdit, deleteContact
 }) => {

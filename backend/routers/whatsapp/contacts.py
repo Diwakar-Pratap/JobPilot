@@ -14,17 +14,23 @@ router = APIRouter()
 class ContactCreate(BaseModel):
     name: str
     phone: str
+    email: Optional[str] = None
     is_active: Optional[bool] = True
     notify_new_jobs: Optional[bool] = True
     notify_high_match: Optional[bool] = True
+    notify_via_whatsapp: Optional[bool] = True
+    notify_via_email: Optional[bool] = False
     match_threshold: Optional[int] = 70
 
 class ContactUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[str] = None
     is_active: Optional[bool] = None
     notify_new_jobs: Optional[bool] = None
     notify_high_match: Optional[bool] = None
+    notify_via_whatsapp: Optional[bool] = None
+    notify_via_email: Optional[bool] = None
     match_threshold: Optional[int] = None
 
 @router.get("/contacts")

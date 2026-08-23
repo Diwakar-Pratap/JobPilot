@@ -12,7 +12,7 @@ const navItems = [
   { href: '/dashboard/applications', icon: '📋', label: 'Applications', id: 'nav-applications', mobileLabel: 'Track' },
   { href: '/dashboard/resume', icon: '📄', label: 'My Resume', id: 'nav-resume', mobileLabel: 'Resume' },
   { href: '/dashboard/companies', icon: '🏢', label: 'Companies', id: 'nav-companies', mobileLabel: 'Companies' },
-  { href: '/dashboard/whatsapp', icon: '💬', label: 'WhatsApp', id: 'nav-whatsapp', mobileLabel: 'Alerts' },
+  { href: '/dashboard/whatsapp', icon: '🔔', label: 'Notifications', id: 'nav-notifications', mobileLabel: 'Alerts' },
   { href: '/dashboard/analytics', icon: '📊', label: 'Analytics', id: 'nav-analytics', mobileLabel: 'Stats' },
   { href: '/dashboard/settings', icon: '⚙️', label: 'Settings', id: 'nav-settings', mobileLabel: 'More' },
 ];
