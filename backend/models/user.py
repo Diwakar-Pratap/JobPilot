@@ -29,6 +29,11 @@ class User(Base):
     years_of_experience: Mapped[int | None] = mapped_column(nullable=True)
     ai_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)  # gemini, groq, openai, nvidia
     ai_api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)   # key for chosen provider
+    smtp_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    smtp_port: Mapped[int | None] = mapped_column(nullable=True)
+    smtp_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    smtp_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    smtp_from_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

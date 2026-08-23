@@ -85,3 +85,35 @@ async def update_job_preferences(
             setattr(current_user, field, value)
     await db.commit()
     return {"message": "Job preferences updated successfully"}
+
+class SMTPUpdate(BaseModel):
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+
+@router.get("/smtp")
+async def get_smtp(current_user: User = Depends(get_current_user)):
+    return {
+        "smtp_host": current_user.smtp_host,
+        "smtp_port": current_user.smtp_port,
+        "smtp_username": current_user.smtp_username,
+        "smtp_password": current_user.smtp_password,
+        "smtp_from_email": current_user.smtp_from_email,
+    }
+
+@router.put("/smtp")
+async def update_smtp(
+    settings: SMTPUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    current_user.smtp_host = settings.smtp_host
+    current_user.smtp_port = settings.smtp_port
+    current_user.smtp_username = settings.smtp_username
+    current_user.smtp_password = settings.smtp_password
+    current_user.smtp_from_email = settings.smtp_from_email
+    await db.commit()
+    return {"status": "success"}
+

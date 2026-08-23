@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { WhatsAppSimulator, WhatsAppContacts, ShareTracker } from './_components';
+import { WhatsAppSimulator, WhatsAppContacts, ShareTracker, EmailConfig } from './_components';
 
 const API = '';
 function getToken() { return localStorage.getItem('access_token') || ''; }
