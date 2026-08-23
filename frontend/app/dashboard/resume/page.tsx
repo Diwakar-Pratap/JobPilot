@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { ResumeUploader, ResumeCard, AiProfileView, ParsedProfileView, AIChat } from './_components';
+import { ResumeUploader, ResumeCard, AiProfileView, ParsedProfileView, AIChat, ATSMatcher } from './_components';
 
 const API = '';
 function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : ''; }

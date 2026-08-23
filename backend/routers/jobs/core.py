@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from database import get_db
 from models.user import User
+from models.resume import Resume
 from models.job import Job
 from models.application import Application
 from utils.security import get_current_user
@@ -102,8 +103,17 @@ async def list_jobs(
     )
     user_apps = {row.job_id: {"status": row.status, "match_score": row.match_score} for row in app_result}
 
+
     target_roles = current_user.target_roles or ""
     user_experience_years = current_user.years_of_experience
+    
+    # Fetch primary resume for skills
+    user_skills = []
+    resume_res = await db.execute(select(Resume).where(Resume.user_id == current_user.id, Resume.is_primary == True, Resume.parse_status == "done"))
+    primary_resume = resume_res.scalar_one_or_none()
+    if primary_resume and primary_resume.parsed_data:
+        user_skills = primary_resume.parsed_data.get("skills", [])
+
 
     job_list = []
     for job in jobs:
@@ -123,6 +133,7 @@ async def list_jobs(
             target_roles,
             job_description=job.description or "",
             user_experience_years=user_experience_years,
+            user_skills=user_skills,
         )
         job_list.append({
             "id": job.id,
@@ -199,8 +210,17 @@ async def export_filtered_jobs(
     result = await db.execute(select(Job).where(and_(*filters)).order_by(order_clause))
     jobs = result.scalars().all()
 
+
     target_roles = current_user.target_roles or ""
     user_experience_years = current_user.years_of_experience
+    
+    # Fetch primary resume for skills
+    user_skills = []
+    resume_res = await db.execute(select(Resume).where(Resume.user_id == current_user.id, Resume.is_primary == True, Resume.parse_status == "done"))
+    primary_resume = resume_res.scalar_one_or_none()
+    if primary_resume and primary_resume.parsed_data:
+        user_skills = primary_resume.parsed_data.get("skills", [])
+
 
     job_list = []
     for job in jobs:
@@ -218,6 +238,7 @@ async def export_filtered_jobs(
             target_roles,
             job_description=job.description or "",
             user_experience_years=user_experience_years,
+            user_skills=user_skills,
         )
         
         job_list.append({

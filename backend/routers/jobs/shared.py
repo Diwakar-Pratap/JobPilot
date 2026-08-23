@@ -76,6 +76,7 @@ def _compute_match_percent(
     target_roles: str,
     job_description: str = "",
     user_experience_years: int | None = None,
+    user_skills: list | None = None,
 ) -> int:
     """Compute keyword-overlap match %, penalized by experience mismatch."""
     if not target_roles:
@@ -97,6 +98,16 @@ def _compute_match_percent(
         match_pct = int(matches / len(role_keywords) * 100)
         if match_pct > best_match:
             best_match = match_pct
+
+
+    if user_skills and job_skills:
+        # Boost score based on skill overlap
+        job_sk_lower = [s.lower() for s in job_skills]
+        usr_sk_lower = [s.lower() for s in user_skills]
+        overlap = sum(1 for s in job_sk_lower if s in usr_sk_lower or any(s in u for u in usr_sk_lower))
+        if len(job_sk_lower) > 0:
+            skill_bonus = min(int((overlap / len(job_sk_lower)) * 30), 30)
+            best_match = min(best_match + skill_bonus, 100)
 
     # Experience mismatch penalty
     if user_experience_years is not None and user_experience_years > 0 and (job_description or job_title):
