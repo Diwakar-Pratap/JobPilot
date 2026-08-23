@@ -28,6 +28,8 @@ const client = new Client({
       "--disable-gpu",
     ],
   },
+  webVersionCache: { type: "remote", remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html" },
+  webVersionCache: { type: "remote", remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html" },
 });
 
 client.on("qr", async (qr) => {
@@ -70,10 +72,29 @@ client.on("disconnected", (reason) => {
   }, 5000);
 });
 
-// Initialize the client
-client.initialize().catch((err) => {
-  console.error("Error initializing WhatsApp client:", err);
-});
+
+// Initialize the client with retry logic for navigation errors
+const initializeWithRetry = async (retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`Attempting to initialize WhatsApp client (attempt ${i + 1}/${retries})...`);
+      await client.initialize();
+      console.log('WhatsApp client initialization triggered successfully.');
+      return;
+    } catch (err) {
+      console.error(`Error initializing WhatsApp client on attempt ${i + 1}:`, err.message);
+      if (err.message.includes("Execution context was destroyed") && i < retries - 1) {
+        console.log("Navigation detected, retrying in 3 seconds...");
+        await new Promise(res => setTimeout(res, 3000));
+      } else {
+        break;
+      }
+    }
+  }
+};
+
+initializeWithRetry();
+
 
 // API Routes
 app.get("/status", (req, res) => {
