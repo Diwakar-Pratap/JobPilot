@@ -19,6 +19,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [workMode, setWorkMode] = useState('');
   const [jobType, setJobType] = useState('');
   const [experience, setExperience] = useState('');
@@ -329,6 +330,7 @@ export default function JobsPage() {
     const token = getToken();
     const params = new URLSearchParams({ page: String(page), limit: '18' });
     if (search) params.append('q', search);
+    if (locationFilter) params.append('location', locationFilter);
     if (workMode) params.append('work_mode', workMode);
     if (jobType) params.append('job_type', jobType);
     if (experience) params.append('experience', experience);
@@ -348,9 +350,46 @@ export default function JobsPage() {
       }
     } catch (e) {}
     setLoading(false);
-  }, [page, search, workMode, jobType, experience, sortBy, activeRoleFilter]);
+  }, [page, search, locationFilter, workMode, jobType, experience, sortBy, activeRoleFilter]);
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
+
+
+  const handleExportFilteredJobs = async () => {
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (search) params.append('q', search);
+    if (locationFilter) params.append('location', locationFilter);
+    if (workMode) params.append('work_mode', workMode);
+    if (jobType) params.append('job_type', jobType);
+    if (experience) params.append('experience', experience);
+    if (sortBy) params.append('sort', sortBy);
+    if (activeRoleFilter && activeRoleFilter !== 'all') {
+      params.append('role', activeRoleFilter);
+    }
+
+    try {
+      showToast('⏳ Generating Excel...');
+      const res = await fetch(`${API}/api/jobs/export-filtered?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'filtered_jobs.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showToast('✅ Excel export downloaded!');
+      } else {
+        showToast('❌ Failed to export Excel');
+      }
+    } catch (e) {
+      showToast('❌ Network error during export');
+    }
+  };
 
   const handleSave = async (jobId: string) => {
     const token = getToken();
@@ -700,6 +739,18 @@ export default function JobsPage() {
                 placeholder="Search by role, company, or skill..."
               />
             </div>
+            <div style={{ position: 'relative', flex: 0.5, minWidth: '150px' }}>
+              <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', color: '#4a5480' }}>📍</span>
+              <input
+                id="job-location"
+                type="text"
+                value={locationFilter}
+                onChange={e => { setLocationFilter(e.target.value); setPage(1); }}
+                className="input-field"
+                style={{ paddingLeft: '40px' }}
+                placeholder="Location..."
+              />
+            </div>
 
             {/* Work Mode */}
             <select
@@ -752,7 +803,7 @@ export default function JobsPage() {
               </select>
             </div>
 
-            <button onClick={() => { setSearch(''); setWorkMode(''); setJobType(''); setExperience(''); setSortBy('newest'); setActiveRoleFilter('all'); setPage(1); }}
+            <button onClick={() => { setSearch(''); setLocationFilter(''); setWorkMode(''); setJobType(''); setExperience(''); setSortBy('newest'); setActiveRoleFilter('all'); setPage(1); }}
               style={{
                 padding: '8px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 500,
                 background: 'rgba(255,255,255,0.04)', color: '#4a5480',
