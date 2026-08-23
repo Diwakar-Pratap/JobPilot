@@ -1,228 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { ResumeUploader, ResumeCard, AiProfileView, ParsedProfileView, AIChat } from './_components';
 
 const API = '';
-function getToken() { return localStorage.getItem('access_token') || ''; }
-
-function SkillTag({ skill, matched }: { skill: string; matched?: boolean }) {
-  return (
-    <span style={{
-      fontSize: '12px', padding: '4px 10px', borderRadius: '999px', fontWeight: 500,
-      background: matched ? 'rgba(16,185,129,0.12)' : 'rgba(99,102,241,0.1)',
-      color: matched ? '#6ee7b7' : '#a5b4fc',
-      border: `1px solid ${matched ? 'rgba(16,185,129,0.25)' : 'rgba(99,102,241,0.2)'}`,
-    }}>
-      {matched && '✓ '}{skill}
-    </span>
-  );
-}
-
-function ParsedProfileView({ data, aiProfile }: any) {
-  if (!data) return null;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
-      {/* Header info */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-        <div style={{ width: '64px', height: '64px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 700, flexShrink: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white' }}>
-          {data.name?.[0] || '?'}
-        </div>
-        <div>
-          <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, color: 'white', fontSize: '20px' }}>{data.name}</h3>
-          <p style={{ fontSize: '13px', marginTop: '2px', color: '#8892b0' }}>{data.email} · {data.phone}</p>
-          <p style={{ fontSize: '13px', color: '#8892b0' }}>{data.location}</p>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-            {data.linkedin_url && <a href={data.linkedin_url} target="_blank" className="badge badge-blue" style={{ fontSize: '11px' }}>LinkedIn ↗</a>}
-            {data.github_url && <a href={data.github_url} target="_blank" className="badge badge-gray" style={{ fontSize: '11px' }}>GitHub ↗</a>}
-          </div>
-        </div>
-        {aiProfile?.resume_score && (
-          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
-            <div className="gradient-text" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '30px', fontWeight: 900 }}>{aiProfile.resume_score}</div>
-            <div style={{ fontSize: '11px', color: '#4a5480' }}>Resume Score</div>
-          </div>
-        )}
-      </div>
-
-      {/* AI Career Summary */}
-      {aiProfile?.career_summary && (
-        <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a5b4fc' }}>🤖 AI Career Summary</p>
-          <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#c8cce0' }}>{aiProfile.career_summary}</p>
-        </div>
-      )}
-
-      {/* Skills */}
-      {data.skills && data.skills.length > 0 && (
-        <div>
-          <h4 style={{ fontWeight: 600, color: 'white', fontSize: '14px', marginBottom: '12px' }}>Skills ({data.skills.length})</h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {data.skills.map((skill: string) => <SkillTag key={skill} skill={skill} />)}
-          </div>
-        </div>
-      )}
-
-      {/* Experience */}
-      {data.experience && data.experience.length > 0 && (
-        <div>
-          <h4 style={{ fontWeight: 600, color: 'white', fontSize: '14px', marginBottom: '12px' }}>Experience</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {data.experience.map((exp: any, i: number) => (
-              <div key={i} style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'white', fontSize: '14px' }}>{exp.title}</div>
-                    <div style={{ fontSize: '13px', color: '#8892b0' }}>{exp.company}</div>
-                  </div>
-                  <div style={{ fontSize: '12px', textAlign: 'right', color: '#4a5480' }}>
-                    {exp.start_date} — {exp.end_date || 'Present'}
-                  </div>
-                </div>
-                {exp.description && (
-                  <p style={{ fontSize: '12px', marginTop: '8px', lineHeight: 1.5, color: '#4a5480' }}>{exp.description}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Education */}
-      {data.education && data.education.length > 0 && (
-        <div>
-          <h4 style={{ fontWeight: 600, color: 'white', fontSize: '14px', marginBottom: '12px' }}>Education</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {data.education.map((edu: any, i: number) => (
-              <div key={i} style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontWeight: 600, color: 'white', fontSize: '14px' }}>{edu.degree} in {edu.field}</div>
-                <div style={{ fontSize: '13px', color: '#8892b0' }}>{edu.institution}</div>
-                <div style={{ fontSize: '12px', marginTop: '4px', color: '#4a5480' }}>
-                  {edu.start_date} — {edu.end_date} {edu.gpa && `· GPA: ${edu.gpa}`}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* AI Suggestions */}
-      {aiProfile?.improvement_suggestions && aiProfile.improvement_suggestions.length > 0 && (
-        <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fcd34d' }}>💡 AI Improvement Tips</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {aiProfile.improvement_suggestions.map((s: string, i: number) => (
-              <div key={i} style={{ fontSize: '13px', color: '#c8cce0' }}>• {s}</div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AIChat({ resumeId }: { resumeId?: string }) {
-  const [messages, setMessages] = useState<{role: 'user'|'ai', text: string}[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const suggestedQuestions = [
-    "What are my strongest skills?",
-    "How can I improve my resume?",
-    "What roles am I best suited for?",
-    "What skills should I learn next?",
-    "Write a professional summary for me",
-  ];
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = async (msg?: string) => {
-    const text = msg || input.trim();
-    if (!text) return;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text }]);
-    setLoading(true);
-
-    const token = getToken();
-    try {
-      const res = await fetch(`${API}/api/resume/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: text, resume_id: resumeId }),
-      });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.reply }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'ai', text: 'Failed to reach AI. Is the backend running?' }]);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '420px' }}>
-      {/* Chat header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <span style={{ fontSize: '16px' }}>🤖</span>
-        <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, color: 'white', fontSize: '14px' }}>AI Career Coach</span>
-        <span style={{ fontSize: '11px', color: '#4a5480' }}>Ask anything about your resume</span>
-      </div>
-
-      {/* Messages area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-            <p style={{ fontSize: '13px', color: '#4a5480', marginBottom: '16px' }}>Ask the AI about your resume, career, or job search</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-              {suggestedQuestions.map((q) => (
-                <button key={q} onClick={() => sendMessage(q)}
-                  style={{ fontSize: '11px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{
-              maxWidth: '85%', padding: '10px 14px', borderRadius: '14px', fontSize: '13px', lineHeight: 1.5,
-              background: m.role === 'user' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
-              color: m.role === 'user' ? '#e8eaf6' : '#c8cce0',
-              border: m.role === 'user' ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)',
-              borderBottomRightRadius: m.role === 'user' ? '4px' : '14px',
-              borderBottomLeftRadius: m.role === 'ai' ? '4px' : '14px',
-            }}>
-              {m.text}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ display: 'flex', gap: '4px', padding: '12px' }}>
-            {[0, 1, 2].map(i => (
-              <div key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4a5480', animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }} />
-            ))}
-          </div>
-        )}
-        <div ref={chatEndRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '8px' }}>
-        <input className="input-field" value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && sendMessage()}
-          placeholder="Ask about your resume..." style={{ flex: 1 }} />
-        <button className="btn-primary" onClick={() => sendMessage()} disabled={loading || !input.trim()}
-          style={{ padding: '10px 16px', fontSize: '13px' }}>
-          {loading ? '...' : '➤'}
-        </button>
-      </div>
-    </div>
-  );
-}
+function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : ''; }
 
 export default function ResumePage() {
   const [resumes, setResumes] = useState<any[]>([]);
@@ -255,7 +37,6 @@ export default function ResumePage() {
     fetchResumes();
     fetchTargetRoles();
   }, []);
-
 
   const fetchTargetRoles = async () => {
     const token = getToken();
@@ -416,7 +197,6 @@ export default function ResumePage() {
     }
   };
 
-
   return (
     <div style={{ maxWidth: '1024px', margin: '0 auto' }} className="animate-fade-in">
       {/* Header */}
@@ -517,28 +297,14 @@ export default function ResumePage() {
             )}
           </div>
 
-          {/* Upload dropzone */}
-          <div id="resume-upload-zone"
-            style={{
-              borderRadius: '16px', border: '2px dashed', padding: '32px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
-              borderColor: dragOver ? '#6366f1' : 'rgba(255,255,255,0.1)',
-              background: dragOver ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)',
-              transform: dragOver ? 'scale(1.02)' : 'scale(1)',
-            }}
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleFileDrop}
-            onClick={() => fileRef.current?.click()}>
-            <input ref={fileRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={handleFileChange} />
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>{uploading ? '⏳' : '📄'}</div>
-            <div style={{ fontWeight: 600, color: 'white', marginBottom: '4px', fontSize: '14px' }}>
-              {uploading ? 'Uploading...' : 'Drop your resume here'}
-            </div>
-            <div style={{ fontSize: '12px', marginBottom: '16px', color: '#4a5480' }}>PDF or DOCX · Max 10MB</div>
-            <button className="btn-primary" style={{ fontSize: '13px', padding: '8px 20px' }} disabled={uploading}>
-              {uploading ? 'Uploading...' : 'Browse File'}
-            </button>
-          </div>
+          <ResumeUploader
+            dragOver={dragOver}
+            setDragOver={setDragOver}
+            uploading={uploading}
+            handleFileDrop={handleFileDrop}
+            fileRef={fileRef}
+            handleFileChange={handleFileChange}
+          />
 
           {/* Parse status */}
           {parseProgress && (
@@ -553,64 +319,19 @@ export default function ResumePage() {
               <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, color: 'white', fontSize: '14px', marginBottom: '12px' }}>Uploaded Resumes</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {resumes.map(r => (
-                  <div key={r.id} className="glass-card"
-                    onClick={() => setPrimaryResume(r)}
-                    style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderColor: r.id === primaryResume?.id ? 'rgba(99,102,241,0.4)' : undefined }}>
-                    <span style={{ fontSize: '20px' }}>📄</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.filename}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-                        <span style={{ fontSize: '11px', color: r.parse_status === 'done' ? '#6ee7b7' : r.parse_status === 'parsing' ? '#fcd34d' : '#64748b' }}>
-                          {r.parse_status === 'done' ? '✓ Parsed' : r.parse_status === 'parsing' ? `⏳ Parsing (${r.parse_percent || 10}%)` : r.parse_status === 'failed' ? '❌ Failed' : '⏳ Pending'}
-                        </span>
-                        {r.is_primary && <span className="badge badge-brand" style={{ fontSize: '10px' }}>Primary</span>}
-                      </div>
-                    </div>
-                    {r.parse_status === 'done' && (
-                      <button onClick={e => { e.stopPropagation(); handleReparse(r.id); }}
-                        style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '8px', color: '#4a5480', background: 'rgba(255,255,255,0.04)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-                        🔄
-                      </button>
-                    )}
-                  </div>
+                  <ResumeCard
+                    key={r.id}
+                    resume={r}
+                    primaryResume={primaryResume}
+                    setPrimaryResume={setPrimaryResume}
+                    handleReparse={handleReparse}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* AI Profile Card */}
-          {primaryResume?.ai_profile && (
-            <div className="premium-card" style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '16px' }}>🤖</span>
-                <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, color: 'white', fontSize: '14px' }}>AI Profile Insights</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: '#8892b0' }}>Years Experience</span>
-                  <span style={{ color: 'white', fontWeight: 500 }}>{primaryResume.parsed_data?.years_of_experience || '?'} yrs</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: '#8892b0' }}>Seniority</span>
-                  <span style={{ color: 'white', fontWeight: 500, textTransform: 'capitalize' }}>{primaryResume.parsed_data?.seniority_level || '?'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: '#8892b0' }}>Resume Score</span>
-                  <span className="gradient-text" style={{ fontWeight: 700 }}>{primaryResume.ai_profile?.resume_score || '?'}/100</span>
-                </div>
-              </div>
-              {primaryResume.ai_profile?.target_roles && (
-                <div style={{ marginTop: '16px' }}>
-                  <p style={{ fontSize: '11px', marginBottom: '8px', color: '#4a5480' }}>Suggested roles to search:</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {primaryResume.ai_profile.target_roles.slice(0, 5).map((r: string) => (
-                      <span key={r} className="badge badge-brand" style={{ fontSize: '10px' }}>{r}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <AiProfileView primaryResume={primaryResume} />
         </div>
 
         {/* Right: Parsed Profile + AI Chat */}

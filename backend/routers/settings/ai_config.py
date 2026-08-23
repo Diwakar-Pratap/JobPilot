@@ -1,17 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel
-from typing import Optional, List
-from database import get_db
-from models.user import User
-from utils.security import get_current_user, hash_password, verify_password
+from typing import Optional
 import os
 import re
+from database import get_db
+from models.user import User
+from utils.security import get_current_user
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+router = APIRouter()
 
-# ─────────── Provider configuration registry ───────────
 PROVIDER_CONFIG = {
     "gemini": {
         "name": "Google Gemini",
@@ -47,121 +45,15 @@ PROVIDER_CONFIG = {
     },
 }
 
-
-class ProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    linkedin_url: Optional[str] = None
-    github_url: Optional[str] = None
-    portfolio_url: Optional[str] = None
-
-
-class PasswordChange(BaseModel):
-    current_password: str
-    new_password: str
-
-
 class AIProviderRequest(BaseModel):
-    provider: str           # gemini, groq, openai, nvidia
+    provider: str
     api_key: str
-    model: Optional[str] = None   # override default model
-
-
-class JobPreferences(BaseModel):
-    target_roles: Optional[str] = None
-    target_locations: Optional[str] = None
-    expected_salary: Optional[str] = None
-    work_preference: Optional[str] = None
-    years_of_experience: Optional[int] = None
-
-
-@router.get("/profile")
-async def get_profile(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get the current user's profile settings."""
-    return {
-        "id": current_user.id,
-        "name": current_user.name,
-        "email": current_user.email,
-        "phone": current_user.phone,
-        "location": current_user.location,
-        "linkedin_url": current_user.linkedin_url,
-        "github_url": current_user.github_url,
-        "portfolio_url": current_user.portfolio_url,
-        "target_roles": current_user.target_roles or "",
-        "target_locations": current_user.target_locations or "",
-        "expected_salary": current_user.expected_salary or "",
-        "work_preference": current_user.work_preference or "",
-        "years_of_experience": current_user.years_of_experience,
-        "ai_provider": current_user.ai_provider or "gemini",
-        "has_ai_key": bool(
-            current_user.ai_api_key or
-            current_user.openai_api_key or
-            os.getenv("GEMINI_API_KEY", "") or
-            os.getenv("OPENAI_API_KEY", "")
-        ),
-        "has_openai_key": bool(
-            current_user.openai_api_key or
-            (os.getenv("OPENAI_API_KEY", "") not in ["", "your-openai-api-key-here"])
-        ),
-        "created_at": str(current_user.created_at),
-    }
-
-
-@router.put("/profile")
-async def update_profile(
-    data: ProfileUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update user profile information."""
-    update_data = data.model_dump(exclude_none=True)
-    for field, value in update_data.items():
-        if hasattr(current_user, field):
-            setattr(current_user, field, value)
-    await db.commit()
-    return {"message": "Profile updated successfully"}
-
-
-@router.put("/job-preferences")
-async def update_job_preferences(
-    data: JobPreferences,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update job search preferences."""
-    update_data = data.model_dump(exclude_none=True)
-    for field, value in update_data.items():
-        if hasattr(current_user, field):
-            setattr(current_user, field, value)
-    await db.commit()
-    return {"message": "Job preferences updated successfully"}
-
-
-@router.post("/change-password")
-async def change_password(
-    data: PasswordChange,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Change user password."""
-    if not verify_password(data.current_password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
-    current_user.password_hash = hash_password(data.new_password)
-    await db.commit()
-    return {"message": "Password changed successfully"}
-
+    model: Optional[str] = None
 
 @router.get("/ai-providers")
 async def get_ai_providers():
     """Return list of supported AI providers with metadata."""
     return {"providers": PROVIDER_CONFIG}
-
 
 @router.get("/ai-config")
 async def get_ai_config(current_user: User = Depends(get_current_user)):
@@ -178,7 +70,6 @@ async def get_ai_config(current_user: User = Depends(get_current_user)):
         "get_key_url": provider_info["get_key_url"],
         "description": provider_info["description"],
     }
-
 
 @router.post("/ai-provider")
 async def save_ai_provider(
@@ -219,7 +110,7 @@ async def save_ai_provider(
     await db.commit()
 
     # Update .env file for session persistence
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.env')
     env_path = os.path.abspath(env_path)
     try:
         with open(env_path, 'r') as f:
@@ -250,7 +141,6 @@ async def save_ai_provider(
         "model": model,
     }
 
-
 @router.post("/test-ai")
 async def test_ai_connection(current_user: User = Depends(get_current_user)):
     """Test if the configured AI connection is working."""
@@ -260,7 +150,6 @@ async def test_ai_connection(current_user: User = Depends(get_current_user)):
     provider = current_user.ai_provider or settings.AI_PROVIDER or "gemini"
     api_key = current_user.ai_api_key or current_user.openai_api_key
 
-    # Fall back to env key for provider
     if not api_key:
         key_upper = provider.upper()
         api_key = os.getenv(f"{key_upper}_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
@@ -287,47 +176,3 @@ async def test_ai_connection(current_user: User = Depends(get_current_user)):
         }
     except Exception as e:
         return {"status": "error", "message": f"Connection failed: {str(e)}"}
-
-
-# Legacy — kept for backward compatibility; hidden from UI
-class OpenAIKeyRequest(BaseModel):
-    api_key: str
-
-
-@router.post("/openai-key")
-async def save_openai_key(
-    data: OpenAIKeyRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Legacy: Save OpenAI API key. Use /api/settings/ai-provider instead."""
-    return await save_ai_provider(
-        AIProviderRequest(provider="openai", api_key=data.api_key),
-        current_user=current_user,
-        db=db,
-    )
-
-
-class LinkedInCookieRequest(BaseModel):
-    cookie: str
-
-
-@router.post("/linkedin-cookie")
-async def save_linkedin_cookie(
-    data: LinkedInCookieRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Legacy: Save LinkedIn li_at cookie. The live browser daemon no longer requires this."""
-    cookie = data.cookie.strip()
-    if not cookie:
-        raise HTTPException(status_code=400, detail="Cookie cannot be empty")
-    current_user.linkedin_cookie = cookie
-    await db.commit()
-    return {"message": "LinkedIn cookie saved (note: the live browser daemon handles auth automatically)"}
-
-
-@router.get("/linkedin-status")
-async def linkedin_status(current_user: User = Depends(get_current_user)):
-    """Legacy: Check LinkedIn cookie status."""
-    return {"connected": False, "cookie_set": False, "message": "Use the Live Browser daemon for LinkedIn access"}

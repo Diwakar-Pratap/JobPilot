@@ -1,6 +1,3 @@
-"""
-Notifications router — real-time alerts via SSE + REST helpers.
-"""
 import asyncio
 import json
 from typing import Optional, List
@@ -16,24 +13,17 @@ from models.user import User
 from models.application import Alert
 from utils.security import get_current_user, get_current_user_query_token
 
-router = APIRouter(prefix="/api/notifications", tags=["notifications"])
-
-
-# --------------- Schemas ---------------
+router = APIRouter()
 
 class MarkReadRequest(BaseModel):
     ids: Optional[List[str]] = None
     all: Optional[bool] = False
 
-
-# --------------- Endpoints ---------------
-
-@router.get("")
+@router.get("/")
 async def list_notifications(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List user's notifications, most recent first (max 50)."""
     result = await db.execute(
         select(Alert)
         .where(Alert.user_id == current_user.id)
@@ -57,14 +47,12 @@ async def list_notifications(
         ]
     }
 
-
 @router.post("/mark-read")
 async def mark_notifications_read(
     body: MarkReadRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark specific notification IDs — or all — as read."""
     if body.all:
         await db.execute(
             update(Alert)
@@ -87,13 +75,11 @@ async def mark_notifications_read(
 
     return {"message": "Notifications marked as read"}
 
-
 @router.get("/unread-count")
 async def unread_count(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the number of unread notifications."""
     result = await db.execute(
         select(func.count())
         .select_from(Alert)
@@ -102,34 +88,27 @@ async def unread_count(
     count = result.scalar() or 0
     return {"count": count}
 
-
 @router.get("/stream")
 async def notification_stream(
     request: Request,
     current_user: User = Depends(get_current_user_query_token),
 ):
-    """Server-Sent Events stream for real-time notifications."""
-
     async def event_generator():
         last_seen_id: Optional[str] = None
-        heartbeat_counter = 0  # counts 3-second ticks; heartbeat at 5 ticks = 15s
+        heartbeat_counter = 0
 
         while True:
-            # Check if the client disconnected
             if await request.is_disconnected():
                 break
 
             try:
                 async with AsyncSessionLocal() as db:
-                    # Build query for unseen alerts
                     query = (
                         select(Alert)
                         .where(Alert.user_id == current_user.id)
                         .order_by(Alert.created_at.asc())
                     )
                     if last_seen_id:
-                        # Fetch the created_at of the last-seen alert so we
-                        # only stream newer ones.
                         ref = await db.execute(
                             select(Alert.created_at).where(Alert.id == last_seen_id)
                         )
@@ -152,10 +131,9 @@ async def notification_stream(
                     })
                     yield f"data: {payload}\n\n"
                     last_seen_id = alert.id
-                    heartbeat_counter = 0  # reset after real data
+                    heartbeat_counter = 0
 
             except Exception:
-                # Silently continue — connection may recover
                 pass
 
             heartbeat_counter += 1
