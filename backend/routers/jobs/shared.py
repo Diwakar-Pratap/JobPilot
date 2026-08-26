@@ -313,17 +313,17 @@ async def send_alerts_bg(job_ids: List[str], user_id: str):
                         desc_str = ""
                         # If description is a generic system template, don't output it
                         if job.description and not job.description.startswith(f"{job.source.title() if job.source else 'Live'} live job post"):
-                            desc_str = f"\\n*Description:* {job.description[:120]}..."
+                            desc_str = f"\n*Description:* {job.description[:120]}..."
                         elif job.description and job.description.startswith("Wellfound live job post") and len(job.description) > 50:
-                            desc_str = f"\\n*Description:* {job.description[:120]}..."
+                            desc_str = f"\n*Description:* {job.description[:120]}..."
 
                         tracker_id = str(uuid.uuid4())
                         msg = (
-                            f"🎯 *New Job Match ({job.source.title() if job.source else 'Live'})*\\n\\n"
-                            f"*Role:* {job.title}\\n"
-                            f"*Company:* {job.company}{desc_str}\\n"
-                            f"*Location:* {job.location or 'N/A'}\\n"
-                            f"*Link:* {job.url}\\n\\n"
+                            f"🎯 *New Job Match ({job.source.title() if job.source else 'Live'})*\n\n"
+                            f"*Role:* {job.title}\n"
+                            f"*Company:* {job.company}{desc_str}\n"
+                            f"*Location:* {job.location or 'N/A'}\n"
+                            f"*Link:* {job.url}\n\n"
                             f"{get_whatsapp_signature()}"
                         )
 
