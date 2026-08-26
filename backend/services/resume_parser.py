@@ -98,11 +98,11 @@ Return ONLY valid JSON, no markdown, no explanation."""
         content = response.choices[0].message.content
         return json.loads(content)
 
-    async def generate_ai_profile(self, parsed_data: dict) -> dict:
+    async def generate_ai_profile(self, raw_text: str) -> dict:
         """Generate a comprehensive AI profile with insights."""
-        prompt = f"""Based on this parsed resume data, generate an AI-powered career profile with insights.
+        prompt = f"""Based on this raw resume text, generate an AI-powered career profile with insights.
 
-Parsed Data: {json.dumps(parsed_data, indent=2)[:4000]}
+Raw Resume Text: {raw_text[:6000]}
 
 Generate a JSON object with:
 - career_summary (2-3 sentence professional summary)
@@ -347,19 +347,21 @@ Return ONLY valid JSON."""
 
                 # Parse with AI or use Smart Offline Fallback
                 try:
-                    # Attempt AI parsing using configured provider
+                    # Attempt AI parsing using configured provider concurrently to save time
                     from config import settings
+                    import asyncio
                     
-                    parsed_data = await self.parse_with_ai(raw_text)
+                    parsed_data, ai_profile = await asyncio.gather(
+                        self.parse_with_ai(raw_text),
+                        self.generate_ai_profile(raw_text)
+                    )
                     
                     # Update status
                     result = await db.execute(select(Resume).where(Resume.id == resume_id))
                     resume = result.scalar_one_or_none()
                     if resume:
-                        resume.parse_percent = 60
+                        resume.parse_percent = 75
                         await db.commit()
-
-                    ai_profile = await self.generate_ai_profile(parsed_data)
                 except Exception as ai_err:
                     print(f"OpenAI parsing failed, utilizing local smart parser fallback: {ai_err}")
                     parsed_data = self.mock_parse_resume(raw_text)
