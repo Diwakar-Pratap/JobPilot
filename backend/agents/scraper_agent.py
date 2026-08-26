@@ -625,7 +625,7 @@ If no jobs found: {{"jobs": []}}"""
                         jobs_saved += 1
 
                         # Calculate match % and trigger WhatsApp alerts
-                        from routers.jobs import _compute_match_percent
+                        from routers.jobs.shared import _compute_match_percent
                         from models.application import Alert
                         from models.whatsapp import WhatsAppContact
                         from services.whatsapp_notifier import send_whatsapp_alert, get_whatsapp_signature
