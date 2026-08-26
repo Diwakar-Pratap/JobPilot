@@ -214,7 +214,7 @@ async def send_alerts_bg(job_ids: List[str], user_id: str):
             ]
 
             # Fetch jobs
-            jobs_res = await db.execute(select(Job).where(Job.id.in_(job_ids)))
+            jobs_res = await db.execute(select(Job).where(and_(Job.id.in_(job_ids), Job.is_active == True)))
             jobs = jobs_res.scalars().all()
 
             for job in jobs:
