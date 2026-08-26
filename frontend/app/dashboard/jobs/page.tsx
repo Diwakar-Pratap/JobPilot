@@ -78,11 +78,6 @@ export default function JobsPage() {
             const roles = data.target_roles.split(',').map((r: string) => r.trim()).filter(Boolean);
             setTargetRoles(roles);
             setTargetRolesInput(data.target_roles || '');
-            if (roles.length > 0) {
-              if (activeRoleFilter === 'all') {
-                setActiveRoleFilter(roles[0]);
-              }
-            }
           }
           setTargetLocationsInput(data.target_locations || '');
           setExpectedSalaryInput(data.expected_salary || '');
