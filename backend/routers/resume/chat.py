@@ -39,13 +39,9 @@ async def chat_with_resume(
         return {"reply": "Please upload and parse your resume first before chatting with the AI assistant."}
 
     import json
-    from openai import AsyncOpenAI
-    from config import settings
+    from utils.ai_client import make_openai_client
 
-    client_kwargs = {"api_key": settings.OPENAI_API_KEY, "timeout": 12.0}
-    if settings.OPENAI_API_BASE:
-        client_kwargs["base_url"] = settings.OPENAI_API_BASE
-    client = AsyncOpenAI(**client_kwargs)
+    client, model = make_openai_client()
 
     system_prompt = f"""You are an expert career coach AI assistant helping a job seeker understand and improve their resume.
 
@@ -61,7 +57,7 @@ If asked about specific skills, experience, or improvements, reference their act
 
     try:
         response = await client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": data.message}
