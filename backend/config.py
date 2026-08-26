@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: Optional[str] = None  # legacy; used for custom/nvidia
 
     # Model names per provider
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     GROQ_MODEL: str = "llama-3.1-70b-versatile"
     OPENAI_MODEL: str = "gpt-4o-mini"
     NVIDIA_MODEL: str = "meta/llama-3.1-70b-instruct"

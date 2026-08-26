@@ -13,14 +13,8 @@ from sqlalchemy import select
 
 class ResumeParserService:
     def __init__(self):
-        client_kwargs = {
-            "api_key": settings.OPENAI_API_KEY,
-            "timeout": 5.0,
-            "max_retries": 0
-        }
-        if settings.OPENAI_API_BASE:
-            client_kwargs["base_url"] = settings.OPENAI_API_BASE
-        self.client = AsyncOpenAI(**client_kwargs)
+        from utils.ai_client import make_openai_client
+        self.client, self.model = make_openai_client()
 
     def extract_text_from_pdf(self, file_path: str) -> str:
         try:
@@ -85,7 +79,7 @@ Return ONLY valid JSON, no markdown, no explanation."""
 
         try:
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
                 response_format={"type": "json_object"}
@@ -96,7 +90,7 @@ Return ONLY valid JSON, no markdown, no explanation."""
                 raise
             print(f"Resume parse AI request with JSON format failed, retrying without: {format_err}")
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0
             )
@@ -126,7 +120,7 @@ Return ONLY valid JSON."""
 
         try:
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 response_format={"type": "json_object"}
@@ -137,7 +131,7 @@ Return ONLY valid JSON."""
                 raise
             print(f"Profile generation AI request with JSON format failed, retrying without: {format_err}")
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3
             )
@@ -353,9 +347,8 @@ Return ONLY valid JSON."""
 
                 # Parse with AI or use Smart Offline Fallback
                 try:
-                    # Only attempt OpenAI if key is set and valid
-                    if not settings.OPENAI_API_KEY or "your-openai-" in settings.OPENAI_API_KEY:
-                        raise Exception("OpenAI API Key is not configured.")
+                    # Attempt AI parsing using configured provider
+                    from config import settings
                     
                     parsed_data = await self.parse_with_ai(raw_text)
                     

@@ -377,12 +377,7 @@ export default function ResumePage() {
                 )}
               </div>
 
-              {/* AI Chat */}
-              {primaryResume.parse_status === 'done' && (
-                <div className="premium-card" style={{ overflow: 'hidden' }}>
-                  <AIChat resumeId={primaryResume.id} />
-                </div>
-              )}
+
             </>
           ) : (
             <div className="premium-card" style={{ padding: '64px 24px', textAlign: 'center' }}>
@@ -396,6 +391,13 @@ export default function ResumePage() {
           )}
         </div>
       </div>
+
+      {/* AI Chat Full Width */}
+      {primaryResume?.parse_status === 'done' && (
+        <div className="premium-card" style={{ overflow: 'hidden', marginTop: '24px', width: '100%' }}>
+          <AIChat resumeId={primaryResume.id} />
+        </div>
+      )}
     </div>
   );
 }
