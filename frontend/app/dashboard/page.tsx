@@ -155,7 +155,7 @@ export default function DashboardPage() {
     { href: '/dashboard/resume', icon: '📄', label: 'Upload Resume', desc: 'AI parsing', color: '#7c6ef7' },
     { href: '/dashboard/jobs', icon: '🔍', label: 'Find Jobs', desc: 'AI matched', color: '#06d6a0' },
     { href: '/dashboard/whatsapp', icon: '💬', label: 'WhatsApp Alerts', desc: 'Live notifs', color: '#f59e0b' },
-    { href: '/dashboard/settings', icon: '⚙️', label: 'AI Config', desc: 'Set Gemini/Groq', color: '#38bdf8' },
+    { id: 'sync', icon: syncing ? '🔄' : '📈', label: syncing ? 'Syncing...' : 'Sync Sheet', desc: 'Google Sheets', color: '#ef4444', onClick: handleSyncSheets },
   ];
 
   // Profile completion score
@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
       {/* ─── Quick Actions ─── */}
       <div className="grid-responsive-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
-        {quickActions.map((a) => <QuickAction key={a.href} {...a} />)}
+        {quickActions.map((a) => <QuickAction key={a.href || a.id} {...a} />)}
       </div>
 
       {/* ─── Stats ─── */}
