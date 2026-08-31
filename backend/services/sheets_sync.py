@@ -8,6 +8,8 @@ from sqlalchemy import select
 from database import AsyncSessionLocal
 from models.whatsapp import JobShareTracker
 from models.job import Job
+from models.application import Application
+from datetime import datetime, timezone
 from models.user import User
 
 SHEET_ID = "1a8kbLGq2vvuRJlRuFGCkoP_yMwc_eElOs0hGI4oH7rc"
@@ -66,6 +68,24 @@ async def sync_google_sheets():
                     tracker = result.scalar_one_or_none()
                     if tracker and tracker.applied_status != status:
                         tracker.applied_status = status
+                        
+                        if status == "applied":
+                            # Create or update Application
+                            app_result = await db.execute(select(Application).where(Application.job_id == tracker.job_id, Application.user_id == tracker.user_id))
+                            app = app_result.scalar_one_or_none()
+                            if app:
+                                if app.status in ["saved", "pending", "not_applied"]:
+                                    app.status = "applied"
+                                    app.applied_at = datetime.now(timezone.utc)
+                            else:
+                                new_app = Application(
+                                    user_id=tracker.user_id,
+                                    job_id=tracker.job_id,
+                                    status="applied",
+                                    applied_at=datetime.now(timezone.utc)
+                                )
+                                db.add(new_app)
+                                
                         await db.commit()
             
             # 2. Fetch all shared jobs from DB to push to Google Sheets
