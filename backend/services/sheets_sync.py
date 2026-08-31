@@ -31,9 +31,23 @@ async def sync_google_sheets():
             ws = sh.worksheet("Job Tracker")
         except gspread.exceptions.WorksheetNotFound:
             ws = sh.add_worksheet(title="Job Tracker", rows="1000", cols="8")
-            headers = ["Tracker ID", "Company", "Job Title", "Summary", "Job Link", "Posted", "Expired", "Status (applied/not_applied/interviewing)"]
+            headers = ["Tracker ID", "Company", "Job Title", "Summary", "Job Link", "Posted", "Expired", "Applied?"]
             ws.update(values=[headers], range_name="A1:H1")
             ws.format("A1:H1", {"textFormat": {"bold": True}, "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9}})
+        
+        # Update Header dynamically to make sure it is Applied?
+        ws.update_cell(1, 8, "Applied?")
+
+        # Add checkbox validation to column H
+        body = {
+            "requests": [{
+                "setDataValidation": {
+                    "range": { "sheetId": ws.id, "startRowIndex": 1, "endRowIndex": 1000, "startColumnIndex": 7, "endColumnIndex": 8 },
+                    "rule": { "condition": { "type": "BOOLEAN" }, "showCustomUi": True }
+                }
+            }]
+        }
+        sh.batch_update(body)
         
         # 1. Read existing data from Google Sheets to update DB
         existing_records = ws.get_all_records()
@@ -41,7 +55,10 @@ async def sync_google_sheets():
         async with AsyncSessionLocal() as db:
             for row in existing_records:
                 tracker_id = str(row.get("Tracker ID", ""))
-                status = str(row.get("Status (applied/not_applied/interviewing)", "")).strip().lower()
+                applied_val = row.get("Applied?")
+                if applied_val is None:
+                    applied_val = row.get("Status (applied/not_applied/interviewing)")
+                status = "applied" if applied_val in [True, "TRUE", "true", "applied"] else "not_applied"
                 
                 if tracker_id and status:
                     # Update the DB
@@ -70,7 +87,7 @@ async def sync_google_sheets():
                     tracker.url,
                     str(job.posted_at) if job.posted_at else "",
                     str(job.expires_at) if job.expires_at else "",
-                    tracker.applied_status
+                    tracker.applied_status in ["applied", "interviewing"]
                 ])
                 
             if new_data:
