@@ -17,7 +17,9 @@ export interface WhatsAppContactsProps {
   loading: boolean;
   contacts: any[];
   toggleActive: (c: any) => void;
-  sendTest: (id: string) => void;
+  sendIntro: (id: string) => void;
+  sendWelcomeMessage?: boolean;
+  setSendWelcomeMessage?: (val: boolean) => void;
   startEdit: (c: any) => void;
   deleteContact: (id: string) => void;
 }
@@ -25,7 +27,7 @@ export interface WhatsAppContactsProps {
 export const WhatsAppContacts: React.FC<WhatsAppContactsProps> = ({
   showAdd, setShowAdd, resetForm, editId, name, setName, phone, setPhone, email, setEmail, notifyViaWhatsapp, setNotifyViaWhatsapp, notifyViaEmail, setNotifyViaEmail,
   notifyNewJobs, setNotifyNewJobs, notifyHighMatch, setNotifyHighMatch, matchThreshold, setMatchThreshold,
-  handleSubmit, loading, contacts, toggleActive, sendTest, startEdit, deleteContact
+  handleSubmit, loading, contacts, toggleActive, sendIntro, startEdit, deleteContact, sendWelcomeMessage, setSendWelcomeMessage
 }) => {
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -111,6 +113,13 @@ export const WhatsAppContacts: React.FC<WhatsAppContactsProps> = ({
               style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, background: 'var(--surface-3)', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
               Cancel
             </button>
+            {!editId && setSendWelcomeMessage && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '16px' }}>
+                <input type="checkbox" checked={sendWelcomeMessage} onChange={e => setSendWelcomeMessage(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#25d366' }} />
+                <span style={{ fontSize: '14px', color: 'var(--text)' }}>Send welcome intro message now</span>
+              </label>
+            )}
             <button onClick={handleSubmit}
               style={{
                 flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
@@ -207,8 +216,8 @@ export const WhatsAppContacts: React.FC<WhatsAppContactsProps> = ({
                   }}>
                   {contact.is_active ? '⏸️' : '▶️'}
                 </button>
-                <button onClick={() => sendTest(contact.id)}
-                  title="Send Test Notification"
+                <button onClick={() => sendIntro(contact.id)}
+                  title="Send Intro Message"
                   style={{
                     width: '36px', height: '36px', borderRadius: '10px', fontSize: '14px',
                     background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.15)',

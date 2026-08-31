@@ -21,6 +21,7 @@ class ContactCreate(BaseModel):
     notify_via_whatsapp: Optional[bool] = True
     notify_via_email: Optional[bool] = False
     match_threshold: Optional[int] = 70
+    send_welcome_message: Optional[bool] = False
 
 class ContactUpdate(BaseModel):
     name: Optional[str] = None
@@ -67,12 +68,28 @@ async def create_contact(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    dump = data.model_dump()
+    send_welcome = dump.pop("send_welcome_message", False)
+    
     contact = WhatsAppContact(
         user_id=current_user.id,
-        **data.model_dump(),
+        **dump,
     )
     db.add(contact)
     await db.flush()
+    
+    if send_welcome:
+        from services.whatsapp_notifier import send_whatsapp_alert
+        import asyncio
+        msg = f"Hey {contact.name}! 👋 I am Diwakar Pratap, an Agentic AI Developer. 🤖💻\n" \
+              f"I've added you to my JobPilot notifications!\n\n" \
+              f"You can follow my work and connect with me here:\n" \
+              f"🐙 GitHub: https://github.com/Diwakar-Pratap\n" \
+              f"💼 LinkedIn: https://www.linkedin.com/in/diwakar-pratap-98688320a/\n" \
+              f"📸 Instagram: https://www.instagram.com/___the__walker___/\n\n" \
+              f"Excited to stay connected! ✨"
+        asyncio.create_task(send_whatsapp_alert(contact.phone, msg))
+        
     return {
         "id": contact.id,
         "message": "WhatsApp contact added successfully",

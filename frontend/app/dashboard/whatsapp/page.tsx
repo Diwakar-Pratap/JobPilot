@@ -52,6 +52,7 @@ export default function WhatsAppPage() {
   const [notifyViaWhatsapp, setNotifyViaWhatsapp] = useState(true);
   const [notifyViaEmail, setNotifyViaEmail] = useState(false);
   const [notifyNewJobs, setNotifyNewJobs] = useState(true);
+  const [sendWelcomeMessage, setSendWelcomeMessage] = useState(true);
   const [notifyHighMatch, setNotifyHighMatch] = useState(true);
   const [matchThreshold, setMatchThreshold] = useState(70);
 
@@ -249,7 +250,7 @@ export default function WhatsAppPage() {
   };
 
   const resetForm = () => {
-    setName(''); setPhone(''); setEmail(''); setNotifyViaWhatsapp(true); setNotifyViaEmail(false); setNotifyNewJobs(true);
+    setName(''); setPhone(''); setEmail(''); setNotifyViaWhatsapp(true); setNotifyViaEmail(false); setNotifyNewJobs(true); setSendWelcomeMessage(true);
     setNotifyHighMatch(true); setMatchThreshold(70);
     setShowAdd(false); setEditId(null);
   };
@@ -257,7 +258,7 @@ export default function WhatsAppPage() {
   const handleSubmit = async () => {
     if (!name.trim() || !phone.trim()) { showToast('❌ Name and phone are required'); return; }
     const token = getToken();
-    const body = { name, phone, email, notify_via_whatsapp: notifyViaWhatsapp, notify_via_email: notifyViaEmail, notify_new_jobs: notifyNewJobs, notify_high_match: notifyHighMatch, match_threshold: matchThreshold };
+    const body = { name, phone, email, notify_via_whatsapp: notifyViaWhatsapp, notify_via_email: notifyViaEmail, notify_new_jobs: notifyNewJobs, notify_high_match: notifyHighMatch, match_threshold: matchThreshold, send_welcome_message: sendWelcomeMessage };
 
     try {
       let res;
@@ -309,11 +310,11 @@ export default function WhatsAppPage() {
     } catch (e) {}
   };
 
-  const sendTest = async (id: string) => {
+  const sendIntro = async (id: string) => {
     const token = getToken();
     const contact = contacts.find(c => c.id === id);
     try {
-      const res = await fetch(`${API}/api/whatsapp/contacts/${id}/test`, {
+      const res = await fetch(`${API}/api/whatsapp/contacts/${id}/intro`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -427,7 +428,7 @@ export default function WhatsAppPage() {
           notifyHighMatch={notifyHighMatch} setNotifyHighMatch={setNotifyHighMatch}
           matchThreshold={matchThreshold} setMatchThreshold={setMatchThreshold}
           handleSubmit={handleSubmit} loading={loading} contacts={contacts}
-          toggleActive={toggleActive} sendTest={sendTest} startEdit={startEdit} deleteContact={deleteContact}
+          toggleActive={toggleActive} sendIntro={sendIntro} sendWelcomeMessage={sendWelcomeMessage} setSendWelcomeMessage={setSendWelcomeMessage} startEdit={startEdit} deleteContact={deleteContact}
         />
       )}
 
