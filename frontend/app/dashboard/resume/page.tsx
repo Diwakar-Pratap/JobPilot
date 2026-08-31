@@ -23,6 +23,7 @@ export default function ResumePage() {
   // Parsing progress states
   const [parsingPercent, setParsingPercent] = useState<number>(0);
   const [parsingStep, setParsingStep] = useState<string>('');
+  const [resumeToDelete, setResumeToDelete] = useState<string | null>(null);
 
   const getStepText = (percent: number) => {
     if (percent <= 5) return 'Uploading and preparing document...';
@@ -198,19 +199,24 @@ export default function ResumePage() {
   };
 
 
-  const handleDelete = async (resumeId: string) => {
-    if (!confirm('Are you sure you want to delete this resume?')) return;
+  const handleDelete = (resumeId: string) => {
+    setResumeToDelete(resumeId);
+  };
+
+  const confirmDeleteResume = async () => {
+    if (!resumeToDelete) return;
     const token = getToken();
     try {
-      const res = await fetch(`${API}/api/resume/${resumeId}`, {
+      const res = await fetch(`${API}/api/resume/${resumeToDelete}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        setResumes(prev => prev.filter(r => r.id !== resumeId));
-        if (primaryResume?.id === resumeId) {
+        setResumes(prev => prev.filter(r => r.id !== resumeToDelete));
+        if (primaryResume?.id === resumeToDelete) {
           setPrimaryResume(null);
         }
+        setResumeToDelete(null);
       } else {
         alert('Failed to delete resume');
       }
@@ -419,6 +425,38 @@ export default function ResumePage() {
       {primaryResume?.parse_status === 'done' && (
         <div className="premium-card" style={{ overflow: 'hidden', marginTop: '24px', width: '100%' }}>
           <AIChat resumeId={primaryResume.id} />
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {resumeToDelete && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)'
+        }}>
+          <div className="premium-card animate-scale-in" style={{ padding: '24px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '20px', fontWeight: 700, color: 'white', marginBottom: '8px' }}>
+              Delete Resume
+            </h3>
+            <p style={{ fontSize: '14px', color: '#8892b0', marginBottom: '24px' }}>
+              Are you sure you want to delete this resume? This action cannot be undone and will remove associated AI parsing data.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setResumeToDelete(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, background: 'rgba(255,255,255,0.05)', color: 'white', border: 'none', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteResume}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, background: '#ef4444', color: 'white', border: 'none', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
