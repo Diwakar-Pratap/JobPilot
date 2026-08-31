@@ -197,8 +197,30 @@ export default function ResumePage() {
     }
   };
 
+
+  const handleDelete = async (resumeId: string) => {
+    if (!confirm('Are you sure you want to delete this resume?')) return;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/api/resume/${resumeId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setResumes(prev => prev.filter(r => r.id !== resumeId));
+        if (primaryResume?.id === resumeId) {
+          setPrimaryResume(null);
+        }
+      } else {
+        alert('Failed to delete resume');
+      }
+    } catch (e) {
+      alert('Error deleting resume');
+    }
+  };
+
   return (
-    <div style={{ maxWidth: '1024px', margin: '0 auto' }} className="animate-fade-in">
+      <div style={{ maxWidth: '1024px', margin: '0 auto' }} className="animate-fade-in">
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '22px', fontWeight: 700, color: 'white', marginBottom: '4px' }}>My Resume</h1>
@@ -325,7 +347,8 @@ export default function ResumePage() {
                     primaryResume={primaryResume}
                     setPrimaryResume={setPrimaryResume}
                     handleReparse={handleReparse}
-                  />
+                      handleDelete={handleDelete}
+                    />
                 ))}
               </div>
             </div>
