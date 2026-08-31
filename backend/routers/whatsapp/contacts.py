@@ -76,7 +76,7 @@ async def create_contact(
         **dump,
     )
     db.add(contact)
-    await db.flush()
+    await db.commit()
     
     if send_welcome:
         from services.whatsapp_notifier import send_whatsapp_alert
@@ -115,7 +115,7 @@ async def update_contact(
     update_fields = data.model_dump(exclude_none=True)
     for field, value in update_fields.items():
         setattr(contact, field, value)
-
+    await db.commit()
     return {"message": "Contact updated successfully"}
 
 @router.delete("/contacts/{contact_id}")
@@ -135,6 +135,7 @@ async def delete_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     await db.delete(contact)
+    await db.commit()
     return {"message": "Contact deleted successfully"}
 
 @router.post("/contacts/{contact_id}/test")
