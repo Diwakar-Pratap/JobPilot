@@ -438,3 +438,9 @@ async def export_recruiters_excel(current_user: User = Depends(get_current_user)
         filename="recruiters.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+@router.post("/sync-sheets")
+async def api_sync_sheets(current_user: User = Depends(get_current_user)):
+    from services.sheets_sync import sync_google_sheets
+    await sync_google_sheets()
+    return {"status": "success", "message": "Synced successfully"}

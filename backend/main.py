@@ -19,6 +19,7 @@ from routers.whatsapp import router as whatsapp_router
 
 from seed import seed_sample_jobs, sync_target_roles_from_resumes
 from scheduler import periodic_scraper_loop
+from services.sheets_sync import periodic_sheets_sync_loop
 
 
 # NOTE: periodic_linkedin_loop was removed.
@@ -48,6 +49,7 @@ async def lifespan(app: FastAPI):
     
     # Start background scheduler (company career page scraper only)
     scraper_task = asyncio.create_task(periodic_scraper_loop())
+    sheets_sync_task = asyncio.create_task(periodic_sheets_sync_loop())
     # Note: LinkedIn scraping is handled by the live browser daemon
     
     yield

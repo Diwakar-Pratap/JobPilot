@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+
 const API = '';
 function getToken() { return localStorage.getItem('access_token') || ''; }
 
@@ -43,18 +44,57 @@ function ActivityItem({ icon, text, time, color }: any) {
   );
 }
 
-function QuickAction({ href, icon, label, desc, color }: any) {
-  return (
-    <Link href={href} className="glass-card"
-      style={{ padding: '18px 16px', textAlign: 'center', textDecoration: 'none', display: 'block', cursor: 'pointer' }}>
+function QuickAction({ href, icon, label, desc, color, onClick }: any) {
+  const inner = (
+    <>
       <div style={{ width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', margin: '0 auto 10px', background: `${color}18`, border: `1px solid ${color}25` }}>{icon}</div>
       <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-heavy)', marginBottom: '3px', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.01em' }}>{label}</div>
       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{desc}</div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <div onClick={onClick} className="glass-card"
+        style={{ padding: '18px 16px', textAlign: 'center', display: 'block', cursor: 'pointer' }}>
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href} className="glass-card"
+      style={{ padding: '18px 16px', textAlign: 'center', textDecoration: 'none', display: 'block', cursor: 'pointer' }}>
+      {inner}
     </Link>
   );
 }
 
 export default function DashboardPage() {
+  const [toast, setToast] = useState('');
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncSheets = async () => {
+    setSyncing(true);
+    showToast('🔄 Syncing Google Sheets...');
+    try {
+      const res = await fetch(`${API}/api/jobs/sync-sheets`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      if (res.ok) {
+        showToast('✅ Sheets Synced!');
+        fetchData();
+      } else {
+        showToast('❌ Sync failed');
+      }
+    } catch (e) {
+      showToast('❌ Sync error');
+    }
+    setSyncing(false);
+  };
+
   const [stats, setStats] = useState<any>(null);
   const [overview, setOverview] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
