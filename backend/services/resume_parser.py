@@ -141,24 +141,32 @@ Return ONLY valid JSON."""
     def mock_parse_resume(self, raw_text: str) -> dict:
         # Try to find email using regex
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', raw_text)
-        email = email_match.group(0) if email_match else "diwakarpratap80@gmail.com"
+        email = email_match.group(0) if email_match else ""
         
         # Try to find phone
         phone_match = re.search(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', raw_text)
-        phone = phone_match.group(0) if phone_match else "+1 (555) 019-2834"
+        phone = phone_match.group(0) if phone_match else ""
         
-        # Try to extract name (typically the first line or two)
-        name = "Diwakar Pratap"
+        # Try to extract name from first non-empty line that looks like a name (no digits, short)
+        name = ""
         lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
-        if lines:
-            if len(lines[0]) < 50 and not any(c.isdigit() for c in lines[0]):
-                name = lines[0]
-
+        for line in lines[:5]:
+            # A name line is usually short, no digits, no special chars beyond spaces/hyphens
+            if len(line) < 60 and not any(c.isdigit() for c in line) and "@" not in line:
+                name = line
+                break
+        if not name:
+            name = "Unknown"
+        
         # Extract skills using a predefined list of keyword matches
         known_skills = ["Python", "JavaScript", "TypeScript", "React", "Node.js", "Django", "FastAPI", 
                         "SQL", "PostgreSQL", "SQLite", "MongoDB", "Docker", "AWS", "Git", "HTML", 
                         "CSS", "Tailwind", "Machine Learning", "Deep Learning", "NLP", "LLM", 
-                        "PyTorch", "TensorFlow", "Keras", "Scikit-Learn", "Pandas", "NumPy", "C++", "C"]
+                        "PyTorch", "TensorFlow", "Keras", "Scikit-Learn", "Pandas", "NumPy", "C++", "C",
+                        "Java", "Kotlin", "Swift", "Go", "Rust", "Ruby", "PHP", "Scala", "R",
+                        "Spring Boot", "Flask", "Express", "Angular", "Vue", "Next.js",
+                        "Kubernetes", "Terraform", "CI/CD", "Jenkins", "GitHub Actions",
+                        "Redis", "Elasticsearch", "Kafka", "RabbitMQ"]
         
         skills = []
         for skill in known_skills:
@@ -166,7 +174,7 @@ Return ONLY valid JSON."""
                 skills.append(skill)
         
         if not skills:
-            skills = ["Python", "FastAPI", "React", "SQL", "Git"]
+            skills = []
 
         # Try to find LinkedIn
         linkedin = None
@@ -207,77 +215,26 @@ Return ONLY valid JSON."""
                     else:
                         location = city.title()
                     break
-        if not location:
-            location = "Bengaluru, India"
 
-        # Formulate fallback parsed data
+        # Formulate fallback parsed data — NO hardcoded personal info
         return {
             "name": name,
             "email": email,
             "phone": phone,
-            "location": location,
-            "linkedin_url": linkedin or "https://linkedin.com/in/diwakarpratap",
-            "github_url": github or "https://github.com/diwakarpratap",
+            "location": location or "",
+            "linkedin_url": linkedin or None,
+            "github_url": github or None,
             "portfolio_url": None,
-            "summary": "Experienced Software Engineer with a strong background in building high-performance backend systems, web APIs, and integrating AI models.",
+            "summary": "",
             "skills": skills,
-            "experience": [
-                {
-                    "company": "TechInnovate Solutions",
-                    "title": "Software Engineer",
-                    "start_date": "2023-01",
-                    "end_date": "Present",
-                    "location": "Remote",
-                    "description": "Led development of high-performance backend APIs and distributed systems using Python and FastAPI. Built and optimized real-time web services, reducing API latency by 35%. Developed scalable web scrapers and integrated AI services.",
-                    "achievements": [
-                        "Designed and built FastAPI backend handling 50k+ daily active users.",
-                        "Integrated OpenAI GPT models for automated profile generation and extraction.",
-                        "Optimized database queries and connection pooling, boosting database speed by 25%."
-                    ]
-                },
-                {
-                    "company": "PixelCorp Systems",
-                    "title": "Junior Developer",
-                    "start_date": "2021-06",
-                    "end_date": "2022-12",
-                    "location": "New Delhi, India",
-                    "description": "Collaborated with the frontend team to build modern React applications. Designed secure relational database schemas in PostgreSQL and developed core REST APIs using Django.",
-                    "achievements": [
-                        "Built robust authentication modules using OAuth2 and JSON Web Tokens (JWT).",
-                        "Migrated legacy codebase from PHP to modern Python, increasing codebase reliability."
-                    ]
-                }
-            ],
-            "education": [
-                {
-                    "institution": "University of Delhi",
-                    "degree": "Bachelor of Technology",
-                    "field": "Computer Science & Engineering",
-                    "start_date": "2017",
-                    "end_date": "2021",
-                    "gpa": "8.5/10"
-                }
-            ],
-            "projects": [
-                {
-                    "name": "AI Job Assistant",
-                    "description": "Developed a complete autonomous application system that parses resumes, matches profiles with relevant job listings using AI models, and autofills forms.",
-                    "technologies": ["Python", "FastAPI", "React", "SQLite", "OpenAI API"],
-                    "url": "https://github.com/diwakarpratap/jobpilot"
-                }
-            ],
-            "certifications": [
-                {
-                    "name": "AWS Certified Solutions Architect",
-                    "issuer": "Amazon Web Services",
-                    "date": "2023-08",
-                    "url": None
-                }
-            ],
-            "languages": ["English", "Hindi"],
-            "preferred_roles": ["Backend Engineer", "Software Engineer", "AI Engineer"],
-            "preferred_locations": ["Remote", "San Francisco", "New York"],
-            "years_of_experience": 4,
+            "experience": [],
+            "education": [],
+            "projects": [],
+            "certifications": [],
+            "languages": ["English"],
+            "preferred_roles": [],
+            "preferred_locations": ["Remote"],
+            "years_of_experience": 0,
             "seniority_level": "mid"
         }
 
@@ -335,7 +292,7 @@ Return ONLY valid JSON."""
                     raw_text = self.extract_text(file_path)
                 except Exception as text_err:
                     print(f"Text extraction failed: {text_err}")
-                    raw_text = "Diwakar Pratap\nSoftware Engineer\nPython, FastAPI, React, SQL, Git"
+                    raw_text = ""  # Use empty text so fallback parser doesn't inject fake data
                 
                 # Fetch fresh DB session reference to update
                 result = await db.execute(select(Resume).where(Resume.id == resume_id))
