@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { ResumeUploader, ResumeCard, AiProfileView, ParsedProfileView, AIChat, ATSMatcher } from './_components';
 
-const API = '';
+const API = 'http://localhost:8000';
 function getToken() { return typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : ''; }
 
 export default function ResumePage() {
