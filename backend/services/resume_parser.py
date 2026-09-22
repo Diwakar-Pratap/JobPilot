@@ -98,46 +98,6 @@ Return ONLY valid JSON, no markdown, no explanation."""
         content = response.choices[0].message.content
         return json.loads(content)
 
-    async def generate_ai_profile(self, raw_text: str) -> dict:
-        """Generate a comprehensive AI profile with insights."""
-        prompt = f"""Based on this raw resume text, generate an AI-powered career profile with insights.
-
-Raw Resume Text: {raw_text[:6000]}
-
-Generate a JSON object with:
-- career_summary (2-3 sentence professional summary)
-- key_strengths (array of 5 top strengths with descriptions)
-- skill_categories (object grouping skills: languages, frameworks, tools, databases, cloud, soft_skills)
-- top_technologies (array of 10 most important technologies)
-- career_trajectory (string describing career growth)
-- target_roles (array of 5-8 ideal job titles to search for)
-- missing_skills (array of skills to learn for career growth)
-- resume_score (0-100 completeness score)
-- improvement_suggestions (array of strings)
-- follow_up_questions (array of 3-5 questions to gather missing info)
-
-Return ONLY valid JSON."""
-
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-        except Exception as format_err:
-            err_str = str(format_err).lower()
-            if any(k in err_str for k in ["timeout", "connection", "api key", "auth", "unauthorized", "credit"]):
-                raise
-            print(f"Profile generation AI request with JSON format failed, retrying without: {format_err}")
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3
-            )
-
-        return json.loads(response.choices[0].message.content)
-
     def mock_parse_resume(self, raw_text: str) -> dict:
         # Try to find email using regex
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', raw_text)
@@ -238,39 +198,199 @@ Return ONLY valid JSON."""
             "seniority_level": "mid"
         }
 
+    async def generate_ai_profile(self, raw_text: str) -> dict:
+        """Generate a comprehensive AI profile with insights."""
+        prompt = f"""You are an expert career coach AI. Analyze the resume text below and generate a precise, personalized career profile.
+
+CRITICAL RULES:
+1. Calculate years_of_experience ACCURATELY by summing up actual job tenures from start/end dates in the experience section. Do NOT guess or use a default.
+2. All fields must be based ONLY on what is written in the resume. Never hallucinate.
+3. career_summary must mention the person's actual name, actual skills, and actual years of experience.
+4. target_roles must be derived from their actual experience and skills, not generic titles.
+5. key_strengths must reflect actual skills seen in the resume.
+
+Resume Text:
+{raw_text[:6000]}
+
+Generate a JSON object with:
+- career_summary (2-3 sentence professional summary using their actual name, skills, and calculated years of experience)
+- key_strengths (array of 5 objects with "name" and "description" — based on actual skills and experience in the resume)
+- skill_categories (object grouping skills found in the resume: languages, frameworks, tools, databases, cloud, soft_skills)
+- top_technologies (array of up to 10 most important technologies found in the resume)
+- career_trajectory (string describing their actual career growth based on job history)
+- target_roles (array of 5-8 ideal job titles that match their actual experience profile)
+- missing_skills (array of relevant skills they should learn given their target domain)
+- resume_score (0-100 based on completeness: contact info, summary, experience, education, skills, projects)
+- improvement_suggestions (array of 3-5 specific suggestions based on what's actually missing or weak in the resume)
+- follow_up_questions (array of 3-5 questions to fill gaps in their resume)
+
+Return ONLY valid JSON."""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+        except Exception as format_err:
+            err_str = str(format_err).lower()
+            if any(k in err_str for k in ["timeout", "connection", "api key", "auth", "unauthorized", "credit"]):
+                raise
+            print(f"Profile generation AI request with JSON format failed, retrying without: {format_err}")
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+
+        return json.loads(response.choices[0].message.content)
+
+    def _calculate_years_from_experience(self, experience: list) -> float:
+        """Calculate total years of experience by summing up actual job tenure from date strings."""
+        from datetime import date
+        import re as _re
+
+        def parse_date(date_str: str):
+            if not date_str:
+                return None
+            s = str(date_str).strip().lower()
+            if s in ("present", "current", "now", ""):
+                return date.today()
+            # Try YYYY-MM
+            m = _re.match(r'(\d{4})[/-](\d{1,2})', s)
+            if m:
+                return date(int(m.group(1)), int(m.group(2)), 1)
+            # Try YYYY
+            m = _re.match(r'(\d{4})', s)
+            if m:
+                return date(int(m.group(1)), 1, 1)
+            # Try "Jan 2020" or "January 2020"
+            months = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}
+            m = _re.match(r'([a-z]{3})\w*\s+(\d{4})', s)
+            if m:
+                month = months.get(m.group(1), 1)
+                return date(int(m.group(2)), month, 1)
+            return None
+
+        total_days = 0
+        for job in experience:
+            start = parse_date(job.get("start_date", ""))
+            end = parse_date(job.get("end_date", ""))
+            if start and end and end >= start:
+                total_days += (end - start).days
+
+        return round(total_days / 365.25, 1) if total_days > 0 else 0
+
     def mock_ai_profile(self, parsed_data: dict) -> dict:
+        """Dynamic fallback AI profile derived purely from parsed_data — no hardcoded values."""
         skills = parsed_data.get("skills", [])
+        experience = parsed_data.get("experience", [])
+        name = parsed_data.get("name", "the candidate")
+
+        # Calculate real years from actual job dates
+        years = self._calculate_years_from_experience(experience)
+        years_display = f"{int(years)}" if years > 0 else "some"
+
+        # Derive domain from skills
+        has_backend = any(s.lower() in ["python", "fastapi", "django", "node.js", "spring boot", "go", "rust", "flask", "express"] for s in skills)
+        has_frontend = any(s.lower() in ["react", "angular", "vue", "next.js", "html", "css", "typescript"] for s in skills)
+        has_data = any(s.lower() in ["pandas", "numpy", "scikit-learn", "tensorflow", "pytorch", "ml", "machine learning", "deep learning", "nlp"] for s in skills)
+        has_cloud = any(s.lower() in ["aws", "gcp", "azure", "kubernetes", "terraform", "docker"] for s in skills)
+
+        if has_data:
+            domain = "Data Science and Machine Learning"
+            role_label = "Data/ML Engineer"
+        elif has_backend and has_frontend:
+            domain = "Full-Stack Software Engineering"
+            role_label = "Full Stack Developer"
+        elif has_backend:
+            domain = "Backend Software Engineering"
+            role_label = "Backend Engineer"
+        elif has_frontend:
+            domain = "Frontend Development"
+            role_label = "Frontend Developer"
+        else:
+            domain = "Software Engineering"
+            role_label = "Software Engineer"
+
+        # Build career summary from actual data
+        exp_companies = [j.get("company", "") for j in experience if j.get("company")]
+        companies_str = f" at companies including {', '.join(exp_companies[:2])}" if exp_companies else ""
+        skills_str = ", ".join(skills[:5]) if skills else "various technologies"
+        summary = f"{name} is a {domain} professional with {years_display}+ years of hands-on experience{companies_str}. Proficient in {skills_str}, with a proven track record of delivering robust software solutions."
+
+        # Infer target roles from skills
+        target_roles = []
+        if has_backend:
+            target_roles += ["Backend Engineer", "Software Engineer", "API Developer"]
+        if has_frontend:
+            target_roles += ["Frontend Developer", "React Developer", "UI Engineer"]
+        if has_backend and has_frontend:
+            target_roles.append("Full Stack Developer")
+        if has_data:
+            target_roles += ["Data Engineer", "ML Engineer", "AI/ML Developer"]
+        if has_cloud:
+            target_roles.append("DevOps Engineer")
+        if not target_roles:
+            target_roles = ["Software Engineer", "Software Developer"]
+        target_roles = list(dict.fromkeys(target_roles))[:8]  # deduplicate
+
+        # Infer missing skills
+        missing = []
+        if not has_cloud:
+            missing += ["AWS / GCP Cloud Deployment", "Docker & Kubernetes"]
+        if not has_data and has_backend:
+            missing += ["SQL Query Optimization", "System Design"]
+        if has_data and not any(s.lower() in ["docker", "kubernetes"] for s in skills):
+            missing += ["MLOps", "Model Deployment (Docker/K8s)"]
+        if not any(s.lower() in ["graphql", "grpc"] for s in skills):
+            missing.append("GraphQL or gRPC APIs")
+        missing = missing[:5]
+
+        # Score based on completeness
+        score = 40  # base
+        if parsed_data.get("email"): score += 5
+        if parsed_data.get("phone"): score += 5
+        if parsed_data.get("linkedin_url"): score += 5
+        if skills: score += 10
+        if experience: score += 15
+        if parsed_data.get("education"): score += 10
+        if parsed_data.get("projects"): score += 10
+        score = min(score, 100)
+
         return {
-            "career_summary": f"Highly analytical Software Engineer with {parsed_data.get('years_of_experience', 3)}+ years of experience building high-performance backend systems. Expert in developing asynchronous Python services, integrating advanced AI capabilities, and building robust React user interfaces.",
+            "career_summary": summary,
             "key_strengths": [
-                {"name": "API Design & Backend Systems", "description": "Expertise in building scalable asynchronous RESTful APIs using FastAPI, Django, and modern Python best practices."},
-                {"name": "Full Stack Engineering", "description": "Proficient in designing robust relational database schemas and matching them with interactive, responsive React/Next.js interfaces."},
-                {"name": "AI Integration", "description": "Experience building services with large language models, prompt engineering, and structured JSON outputs."},
-                {"name": "Cloud Infrastructure", "description": "Practical understanding of cloud hosting, CI/CD pipelines, containerization using Docker, and Git workflows."},
-                {"name": "Performance Tuning", "description": "Focused on query optimization, caching solutions, and asynchronous programming to decrease application response times."}
-            ],
+                {"name": s, "description": f"Demonstrated experience with {s} through real-world projects and work history."}
+                for s in skills[:5]
+            ] or [{"name": "Technical Proficiency", "description": "Broad technical skill set relevant to the target domain."}],
             "skill_categories": {
-                "languages": ["Python", "JavaScript", "TypeScript", "SQL"],
-                "frameworks": ["FastAPI", "Django", "React", "Next.js", "Express"],
-                "tools": ["Docker", "Git", "GitHub Actions", "VS Code"],
-                "databases": ["SQLite", "PostgreSQL", "MongoDB", "Redis"],
-                "cloud": ["AWS", "Vercel", "GCP"],
-                "soft_skills": ["Problem Solving", "Collaboration", "Agile Methodologies", "Communication"]
+                "languages": [s for s in skills if s.lower() in ["python","javascript","typescript","java","go","rust","kotlin","swift","scala","r","ruby","php","c++","c","c#"]],
+                "frameworks": [s for s in skills if s.lower() in ["react","angular","vue","next.js","fastapi","django","flask","express","spring boot","laravel"]],
+                "tools": [s for s in skills if s.lower() in ["git","docker","jenkins","github actions","ci/cd","webpack","vite"]],
+                "databases": [s for s in skills if s.lower() in ["sql","postgresql","mysql","sqlite","mongodb","redis","elasticsearch","cassandra"]],
+                "cloud": [s for s in skills if s.lower() in ["aws","gcp","azure","kubernetes","terraform","vercel","heroku"]],
+                "soft_skills": ["Problem Solving", "Communication", "Collaboration", "Attention to Detail"]
             },
             "top_technologies": skills[:10],
-            "career_trajectory": "Demonstrated progression from frontend support to core backend architecture design, with a clear focus on artificial intelligence systems.",
-            "target_roles": ["Backend Developer", "Software Engineer", "AI Integration Engineer", "Full Stack Developer", "Python Developer"],
-            "missing_skills": ["Kubernetes", "GraphQL", "Apache Kafka", "Terraform", "NoSQL Database Optimization"],
-            "resume_score": 85,
+            "career_trajectory": f"Built expertise in {domain} over {years_display}+ years{''.join([f', progressing through roles at {c}' for c in exp_companies[:2]])}." if exp_companies else f"Developing expertise in {domain}.",
+            "target_roles": target_roles,
+            "missing_skills": missing,
+            "resume_score": score,
             "improvement_suggestions": [
-                "Quantify achievements more thoroughly (e.g. state size of database managed, exact server speedups).",
-                "Add direct project links or GitHub repository citations for all listed side projects.",
-                "Detail your specific experience with cloud platforms (AWS, GCP) and containerization."
+                "Add measurable achievements with numbers (e.g. 'reduced API latency by 40%').",
+                "Include a professional summary at the top if missing.",
+                "Add GitHub or portfolio links to showcase projects.",
+                "Ensure all jobs have clear start/end dates.",
+                "Tailor skills section to target job descriptions."
             ],
             "follow_up_questions": [
-                "Do you have experience with CI/CD platforms or orchestration tools like Kubernetes?",
-                "Which cloud providers (AWS, GCP, Azure) have you worked with in production environments?",
-                "Are there any specific industry verticals (e.g., FinTech, SaaS, AI Startup) you are most interested in?"
+                "What is your most significant technical achievement in your career?",
+                "Which technologies are you most comfortable with?",
+                "What type of role are you targeting next?",
+                "Do you have any open-source contributions or personal projects to showcase?",
+                "What industries are you most interested in working in?"
             ]
         }
 
