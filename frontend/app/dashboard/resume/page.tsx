@@ -298,7 +298,7 @@ export default function ResumePage() {
             </div>
 
             {/* Auto-detect option */}
-            {primaryResume?.ai_profile?.target_roles && (
+            {primaryResume?.ai_profile?.target_roles && (Array.isArray(primaryResume.ai_profile.target_roles) ? primaryResume.ai_profile.target_roles.length > 0 : !!primaryResume.ai_profile.target_roles) && (
               <div style={{
                 marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)',
                 display: 'flex', flexDirection: 'column', gap: '8px'
@@ -306,12 +306,17 @@ export default function ResumePage() {
                 <div style={{ fontSize: '11px', color: '#8892b0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
                   <span>💡 AI Suggested Roles:</span>
                   <span style={{ color: '#a5b4fc', fontWeight: 500 }}>
-                    {primaryResume.ai_profile.target_roles}
+                    {Array.isArray(primaryResume.ai_profile.target_roles)
+                      ? primaryResume.ai_profile.target_roles.join(', ')
+                      : primaryResume.ai_profile.target_roles}
                   </span>
                 </div>
                 <button
                   onClick={() => {
-                    const suggested = primaryResume.ai_profile.target_roles.split(',').map((r: string) => r.trim()).filter(Boolean);
+                    const raw = primaryResume.ai_profile.target_roles;
+                    const suggested = Array.isArray(raw)
+                      ? raw.map((r: string) => r.trim()).filter(Boolean)
+                      : raw.split(',').map((r: string) => r.trim()).filter(Boolean);
                     const merged = Array.from(new Set([...targetRoles, ...suggested]));
                     setTargetRoles(merged);
                     saveTargetRoles(merged);
