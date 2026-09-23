@@ -143,6 +143,7 @@ export default function WhatsAppPage() {
   useEffect(() => {
     let interval: any = null;
     let hasNotifiedLinked = false;
+    let consecutiveFailures = 0;
 
     const checkStatus = async () => {
       const token = getToken();
@@ -150,6 +151,7 @@ export default function WhatsAppPage() {
         const res = await fetch(`${API}/api/whatsapp/status`, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        consecutiveFailures = 0; // reset on success
         if (res.ok) {
           const data = await res.json();
           setServiceStatus(data.status);
@@ -180,18 +182,31 @@ export default function WhatsAppPage() {
           }
         }
       } catch (e) {
-        console.error("Failed to fetch WhatsApp status", e);
+        consecutiveFailures++;
+        // Only log the first failure — suppress repeated spam when backend is offline
+        if (consecutiveFailures === 1) {
+          console.warn('[WhatsApp] Backend offline — will retry with backoff');
+        }
       }
     };
 
-    checkStatus();
+    // Exponential backoff scheduler: 2.5s → 5s → 10s → 20s → 30s (capped)
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const scheduleNext = (delay: number) => {
+      timeoutId = setTimeout(async () => {
+        await checkStatus();
+        const nextDelay = Math.min(2500 * Math.pow(2, consecutiveFailures), 30000);
+        scheduleNext(nextDelay);
+      }, delay);
+    };
 
-    interval = setInterval(() => {
-      checkStatus();
-    }, 2500);
+    checkStatus().then(() => {
+      const initialDelay = Math.min(2500 * Math.pow(2, consecutiveFailures), 30000);
+      scheduleNext(initialDelay);
+    });
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearTimeout(timeoutId);
     };
   }, []);
 
