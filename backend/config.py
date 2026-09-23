@@ -1,7 +1,12 @@
+import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
 import socket
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ENV_FILE = os.path.join(_BASE_DIR, ".env")
+_DB_PATH = os.path.join(_BASE_DIR, "jobpilot.db").replace("\\", "/")
 
 def _get_default_backend_url() -> str:
     try:
@@ -24,14 +29,14 @@ class Settings(BaseSettings):
     BACKEND_URL: str = _get_default_backend_url()
 
     # Database (SQLite for local development — no Docker needed)
-    DATABASE_URL: str = "sqlite+aiosqlite:///./jobpilot.db"
-    DATABASE_URL_SYNC: str = "sqlite:///./jobpilot.db"
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{_DB_PATH}"
+    DATABASE_URL_SYNC: str = f"sqlite:///{_DB_PATH}"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # JWT Auth
-    SECRET_KEY: str = "your-super-secret-key-change-in-production-min-32-chars"
+    SECRET_KEY: str = "jobpilot-super-secret-key-change-this-in-production-2024"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -74,8 +79,9 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
     class Config:
-        env_file = ".env"
+        env_file = _ENV_FILE
         case_sensitive = True
+        extra = "allow"
 
 
 @lru_cache()

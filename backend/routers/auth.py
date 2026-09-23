@@ -59,13 +59,16 @@ async def signup(data: SignupRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     user = User(
+        id=str(uuid.uuid4()),
         email=data.email.lower(),
         password_hash=hash_password(data.password),
         name=data.name.strip(),
+        is_active=True,
         last_login=datetime.now(timezone.utc),
     )
     db.add(user)
-    await db.flush()
+    await db.commit()
+    await db.refresh(user)
 
     access_token = create_access_token({"sub": user.id})
     refresh_token = create_refresh_token({"sub": user.id})
@@ -89,7 +92,8 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
     user.last_login = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
+    await db.refresh(user)
 
     access_token = create_access_token({"sub": user.id})
     refresh_token = create_refresh_token({"sub": user.id})

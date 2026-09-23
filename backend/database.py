@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import MetaData, event
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 from config import settings
 
 # Naming convention for constraints (useful for alembic)
@@ -21,10 +21,10 @@ engine_args = {
 }
 
 if settings.DATABASE_URL.startswith("sqlite"):
-    # SQLite-specific: use StaticPool for asyncio compatibility + busy timeout
+    # SQLite-specific: use NullPool so each request gets a fresh connection with WAL mode
     # timeout=30 means SQLite will retry for 30 seconds before raising "database is locked"
     engine_args["connect_args"] = {"timeout": 30, "check_same_thread": False}
-    engine_args["poolclass"] = StaticPool
+    engine_args["poolclass"] = NullPool
 else:
     engine_args["pool_pre_ping"] = True
     engine_args["pool_size"] = 10
