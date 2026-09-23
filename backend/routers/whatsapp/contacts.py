@@ -138,8 +138,9 @@ async def delete_contact(
     await db.commit()
     return {"message": "Contact deleted successfully"}
 
+@router.post("/contacts/{contact_id}/intro")
 @router.post("/contacts/{contact_id}/test")
-async def test_contact(
+async def send_contact_intro(
     contact_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -155,12 +156,17 @@ async def test_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     from services.whatsapp_notifier import send_whatsapp_alert
-    msg = f"Hello {contact.name}! This is a test alert from your JobPilot Career Agent. 🚀"
-    
     import asyncio
+    msg = f"Hey {contact.name}! 👋 I am Diwakar Pratap, an Agentic AI Developer. 🤖💻\n\n" \
+          f"You can follow my work and connect with me here:\n" \
+          f"🐙 GitHub: https://github.com/Diwakar-Pratap\n" \
+          f"💼 LinkedIn: https://www.linkedin.com/in/diwakar-pratap-98688320a/\n" \
+          f"📸 Instagram: https://www.instagram.com/___the__walker___/\n\n" \
+          f"Excited to stay connected! ✨"
+
     asyncio.create_task(send_whatsapp_alert(contact.phone, msg))
 
     return {
-        "message": f"Test message sent to {contact.name} at {contact.phone}",
+        "message": f"Intro message sent to {contact.name} at {contact.phone}",
         "status": "success",
     }
