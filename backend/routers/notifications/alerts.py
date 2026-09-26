@@ -13,12 +13,13 @@ from models.user import User
 from models.application import Alert
 from utils.security import get_current_user, get_current_user_query_token
 
-router = APIRouter()
+router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 class MarkReadRequest(BaseModel):
     ids: Optional[List[str]] = None
     all: Optional[bool] = False
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_notifications(
     current_user: User = Depends(get_current_user),

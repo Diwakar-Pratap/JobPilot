@@ -6,8 +6,9 @@ from models.user import User
 from models.application import Alert
 from utils.security import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_alerts(
     current_user: User = Depends(get_current_user),

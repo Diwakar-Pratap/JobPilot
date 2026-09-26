@@ -32,6 +32,7 @@ export default function SettingsPage() {
   // AI config
   const [selectedProvider, setSelectedProvider] = useState('gemini');
   const [aiKey, setAiKey] = useState('');
+  const [aiModel, setAiModel] = useState('');
   const [testingAI, setTestingAI] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<any>(null);
 
@@ -61,6 +62,7 @@ export default function SettingsPage() {
         setExpectedSalary(data.expected_salary || ''); setWorkPreference(data.work_preference || '');
         setYearsExp(data.years_of_experience ? String(data.years_of_experience) : '');
         setSelectedProvider(data.ai_provider || 'gemini');
+        if (data.ai_model) setAiModel(data.ai_model);
       }
     } catch (e) {}
     setLoading(false);
@@ -108,7 +110,7 @@ export default function SettingsPage() {
       const res = await fetch(`${API}/api/settings/ai-provider`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ provider: selectedProvider, api_key: aiKey }),
+        body: JSON.stringify({ provider: selectedProvider, api_key: aiKey, model: aiModel || undefined }),
       });
       const data = await res.json();
       if (res.ok) { showToast(`✓ ${data.message || 'AI provider saved!'}`); setProfile({ ...profile, ai_provider: selectedProvider, has_ai_key: true }); }
@@ -224,7 +226,8 @@ export default function SettingsPage() {
       {activeTab === 'ai' && (
         <AiProviderForm 
           profile={profile} selectedProvider={selectedProvider} setSelectedProvider={setSelectedProvider} 
-          aiKey={aiKey} setAiKey={setAiKey} saving={saving} saveAIProvider={saveAIProvider} 
+          aiKey={aiKey} setAiKey={setAiKey} aiModel={aiModel} setAiModel={setAiModel}
+          saving={saving} saveAIProvider={saveAIProvider} 
           testingAI={testingAI} testAI={testAI} aiTestResult={aiTestResult} 
         />
       )}

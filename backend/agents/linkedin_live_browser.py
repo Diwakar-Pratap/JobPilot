@@ -17,7 +17,11 @@ from datetime import datetime
 
 # Force UTF-8 output on Windows
 if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 # --------------- Post Intelligence Helpers ---------------
@@ -330,6 +334,14 @@ def post_to_backend(url, data, token):
     try:
         with urllib.request.urlopen(req, timeout=60) as res:
             return json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        print(f"[linkedin_live_browser] API POST error to {url}: {e} (Response: {body})", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"[linkedin_live_browser] API POST error to {url}: {e}", file=sys.stderr)
         return None
@@ -353,7 +365,7 @@ async def scrape_jobs_page(page):
     try:
         # Wait for elements
         await page.wait_for_selector(
-            ".job-card-container, .jobs-search-results__list-item, .scaffold-layout__list-item, div[data-job-id], .reusable-search__result-container",
+            ".job-card-container, .jobs-search-results__list-item, .scaffold-layout__list-item, div[data-job-id], .reusable-search__result-container, .base-card, ul.jobs-search__results-list li",
             timeout=10000
         )
     except Exception:
@@ -365,21 +377,21 @@ async def scrape_jobs_page(page):
         await asyncio.sleep(2)
 
     cards = await page.query_selector_all(
-        ".job-card-container, .jobs-search-results__list-item, .scaffold-layout__list-item, div[data-job-id], .reusable-search__result-container"
+        ".job-card-container, .jobs-search-results__list-item, .scaffold-layout__list-item, div[data-job-id], .reusable-search__result-container, .base-card, ul.jobs-search__results-list > li"
     )
     results = []
-    for card in cards[:25]:
+    for card in cards[:30]:
         try:
             title_el = await card.query_selector(
-                ".job-card-list__title, .job-card-container__link, a.job-card-list__title--link"
+                ".job-card-list__title, .job-card-container__link, a.job-card-list__title--link, a.base-card__full-link, a[data-control-name='job_card_click'], a[href*='/jobs/view/'], strong"
             )
             company_el = await card.query_selector(
-                ".job-card-container__primary-description, .artdeco-entity-lockup__subtitle"
+                ".job-card-container__primary-description, .artdeco-entity-lockup__subtitle, .base-search-card__subtitle, h4.base-search-card__subtitle, span.job-card-container__primary-description, a[href*='/company/']"
             )
             location_el = await card.query_selector(
-                ".job-card-container__metadata-wrapper li, .artdeco-entity-lockup__caption"
+                ".job-card-container__metadata-wrapper li, .artdeco-entity-lockup__caption, .job-search-card__location, span.job-card-container__metadata-item, li.job-card-container__metadata-item"
             )
-            time_el = await card.query_selector("time, .job-card-container__listed-time")
+            time_el = await card.query_selector("time, .job-card-container__listed-time, .job-search-card__listdate")
 
             title = (await title_el.inner_text()).strip() if title_el else ""
             link = ""
@@ -387,6 +399,12 @@ async def scrape_jobs_page(page):
                 href = await title_el.get_attribute("href")
                 if href:
                     link = f"https://www.linkedin.com{href}" if href.startswith("/") else href
+            if not link:
+                any_link = await card.query_selector("a[href*='/jobs/view/'], a[href*='/jobs/']")
+                if any_link:
+                    href = await any_link.get_attribute("href")
+                    if href:
+                        link = f"https://www.linkedin.com{href}" if href.startswith("/") else href
 
             company = (await company_el.inner_text()).strip() if company_el else ""
             location = (await location_el.inner_text()).strip() if location_el else ""
@@ -394,10 +412,10 @@ async def scrape_jobs_page(page):
 
             if title:
                 results.append({
-                    "title": title,
-                    "company": company,
-                    "location": location,
-                    "link": link,
+                    "title": title.split("\n")[0].strip(),
+                    "company": company.split("\n")[0].strip(),
+                    "location": location.split("\n")[0].strip(),
+                    "link": link.split("?")[0] if link else "",
                     "posted_time": posted
                 })
         except Exception:
@@ -407,35 +425,40 @@ async def scrape_jobs_page(page):
 
 async def get_post_link_interactive(page, card, fallback_link):
     try:
-        # Override clipboard API inside page to capture writeText calls
+        # 1. Direct post URN or direct activity link
+        urn = await card.get_attribute("data-urn") or await card.get_attribute("data-id")
+        if urn and "activity:" in urn:
+            activity_id = urn.split("activity:")[1].split(",")[0].split(")")[0]
+            return f"https://www.linkedin.com/feed/update/urn:li:activity:{activity_id}/"
+
+        direct_link = await card.query_selector('a[href*="/feed/update/urn:li:activity:"], a[href*="/activity/"], a[href*="/posts/"]')
+        if direct_link:
+            href = await direct_link.get_attribute("href")
+            if href:
+                if href.startswith("/"):
+                    href = f"https://www.linkedin.com{href}"
+                return href.split("?")[0]
+
+        # 2. Interactive clipboard override
         await page.evaluate("() => { window.copiedText = ''; if (navigator.clipboard) { navigator.clipboard.writeText = (txt) => { window.copiedText = txt; return Promise.resolve(); }; } }")
         
-        # Find three-dots button
-        button = await card.query_selector('button[aria-label^="Open control menu"]')
-        if not button:
-            return fallback_link
-            
-        await button.click()
-        await asyncio.sleep(0.8)
-        
-        # Find Copy link dropdown item
-        dropdown_items = await page.query_selector_all('[role="menuitem"], .artdeco-dropdown__item')
-        copy_item = None
-        for item in dropdown_items:
-            txt = await item.evaluate("el => el.innerText")
-            if txt and ("link" in txt.lower() or "copy" in txt.lower()):
-                copy_item = item
-                break
-                
-        if copy_item:
-            await copy_item.click()
+        button = await card.query_selector('button[aria-label^="Open control menu"], button[aria-label*="control menu"]')
+        if button:
+            await button.click()
             await asyncio.sleep(0.8)
             
-            copied = await page.evaluate("() => window.copiedText")
-            if copied and copied.startswith("http"):
-                return copied
+            dropdown_items = await page.query_selector_all('[role="menuitem"], .artdeco-dropdown__item')
+            for item in dropdown_items:
+                txt = await item.evaluate("el => el.innerText")
+                if txt and ("link" in txt.lower() or "copy" in txt.lower()):
+                    await item.click()
+                    await asyncio.sleep(0.8)
+                    copied = await page.evaluate("() => window.copiedText")
+                    if copied and copied.startswith("http"):
+                        return copied
+                    break
     except Exception as e:
-        print(f"[linkedin_live_browser] Interactive link copy failed: {e}")
+        print(f"[linkedin_live_browser] Link extraction notice: {e}")
         
     return fallback_link
 
@@ -443,9 +466,8 @@ async def get_post_link_interactive(page, card, fallback_link):
 async def scrape_posts_page(page, user_location: str = ""):
     """Scrape LinkedIn posts, filtering out job-seeker posts and extracting location."""
     try:
-        # Wait for either lazy-column container or any text matching Feed post
         await page.wait_for_selector(
-            '[data-testid="lazy-column"], [data-component-type="LazyColumn"]',
+            'div[role="listitem"], div[componentkey*="update-card"], [data-testid="lazy-column"], .feed-shared-update-v2',
             timeout=10000
         )
     except Exception:
@@ -454,97 +476,84 @@ async def scrape_posts_page(page, user_location: str = ""):
     # Scroll to load more posts
     for _ in range(3):
         await page.evaluate("window.scrollBy(0, 900)")
-        await asyncio.sleep(2.5)
+        await asyncio.sleep(2)
 
-    # Locate list container
-    list_container = None
-    divs = await page.query_selector_all("div")
-    for d in divs:
-        try:
-            testid = await d.get_attribute("data-testid")
-            comp_type = await d.get_attribute("data-component-type")
-            if testid == "lazy-column" or comp_type == "LazyColumn":
-                list_container = d
-                break
-        except Exception:
-            pass
+    # Directly select post cards across both modern SDUI and legacy LinkedIn DOM variants
+    cards = await page.query_selector_all(
+        'div[role="listitem"], div[componentkey*="update-card"], [data-testid="lazy-column"] > div > div > div, .feed-shared-update-v2, div[data-view-name="feed-full-update"], div[data-urn*="activity"], li.reusable-search__result-container, .artdeco-card'
+    )
 
-    if not list_container:
-        # Fallback container scan
-        for d in divs:
-            try:
-                children = await d.query_selector_all("xpath=./div")
-                if 5 <= len(children) <= 40:
-                    text = await d.evaluate("el => el.innerText")
-                    if text and "Feed post" in text:
-                        list_container = d
-                        break
-            except Exception:
-                pass
-
-    if not list_container:
-        print("[linkedin_live_browser] Could not find posts list container.")
+    if not cards:
+        print("[linkedin_live_browser] Could not find any post cards on page.")
         return []
 
-    cards = await list_container.query_selector_all("xpath=./div")
+    print(f"[linkedin_live_browser] Found {len(cards)} candidate post cards on page.")
     results = []
     filtered_count = 0
-    
-    for card in cards[:25]:
+    seen_links = set()
+
+    for card in cards[:30]:
         try:
-            # Check if card is a feed post
-            card_text = await card.evaluate("el => el.innerText")
-            if not card_text or "Feed post" not in card_text:
-                continue
-
-            # 1. Author and Profile Link
-            author_links = await card.query_selector_all('a[href*="/company/"], a[href*="/in/"]')
-            author = "Unknown Author"
-            author_link = ""
-            for link in author_links:
-                href = await link.get_attribute("href")
-                if href:
-                    if href.startswith("/"):
-                        href = f"https://www.linkedin.com{href}"
-                    href_clean = href.split("?")[0]
-                    if not author_link:
-                        author_link = href_clean
-                    
-                    text = (await link.inner_text()).strip()
-                    if text:
-                        name_candidate = text.split("\n")[0].strip()
-                        if name_candidate and name_candidate not in ["", "Follow", "View profile"]:
-                            author = name_candidate
-                            break
-
-            # 2. Content Description
-            content_el = await card.query_selector('[data-testid="expandable-text-box"]')
-            if not content_el:
-                content_el = await card.query_selector('.feed-shared-update-v2__description, .update-components-text, .feed-shared-text, .break-words')
-            
+            # 1. Content Description
+            content_el = await card.query_selector(
+                '[data-testid="expandable-text-box"], .feed-shared-update-v2__description, .update-components-text, .feed-shared-text, .break-words, span[dir="ltr"]'
+            )
             content = ""
             if content_el:
-                content = (await content_el.evaluate("el => el.innerText")).strip()
+                content = (await content_el.inner_text()).strip()
+
+            if not content:
+                card_text = (await card.inner_text() or "").strip()
+                lines = [l.strip() for l in card_text.split("\n") if len(l.strip()) > 30 and not any(k in l.lower() for k in ["follow", "like", "comment", "share", "repost"])]
+                if lines:
+                    content = "\n".join(lines[:3])
+
+            if not content or len(content) < 20:
+                continue
 
             # ── FILTER 1: Skip posts that are from job seekers, not recruiters ──
             if is_job_seeker_post(content):
                 filtered_count += 1
-                print(f"[linkedin_live_browser] Filtered job-seeker post from: {author}")
                 continue
 
             # ── FILTER 2: Skip thought-leadership / editorial posts about hiring ──
             if is_thought_leadership_post(content):
                 filtered_count += 1
-                print(f"[linkedin_live_browser] Filtered thought-leadership post (not a job ad) from: {author}")
                 continue
+
+            # 2. Author and Profile Link
+            author = "Unknown Recruiter"
+            author_link = ""
+
+            # Check for author aria-label on control menu button
+            control_btn = await card.query_selector('button[aria-label*="control menu for post by"], button[aria-label*="Open control menu"]')
+            if control_btn:
+                lbl = await control_btn.get_attribute("aria-label") or ""
+                m = re.search(r"control menu for post by\s+(.+)$", lbl, re.IGNORECASE)
+                if m:
+                    author = m.group(1).strip()
+
+            author_links = await card.query_selector_all('a[href*="/in/"], a[href*="/company/"], a[href*="/groups/"]')
+            for link_el in author_links:
+                href = await link_el.get_attribute("href")
+                if href:
+                    if "/in/" in href or "/company/" in href:
+                        clean_href = href.split("?")[0]
+                        if not author_link:
+                            author_link = clean_href
+                        if author == "Unknown Recruiter":
+                            txt = (await link_el.inner_text()).strip()
+                            if txt and len(txt) > 2 and txt not in ("Follow", "Join", "View profile"):
+                                author = txt.split("\n")[0].strip()
+                        break
 
             # 3. Posted Time
             posted = ""
-            text_elements = await card.query_selector_all("span, p")
+            text_elements = await card.query_selector_all("span, p, time")
             timestamp_pattern = re.compile(r'^\d+[mhdw]\b|^\d+\s*(min|hour|day|week|month)s?\s*ago|^now\b', re.IGNORECASE)
             for el in text_elements:
                 try:
-                    txt = (await el.evaluate("el => el.innerText")).strip()
+                    txt = (await el.inner_text() or "").strip()
                     if txt:
                         clean_txt = txt.replace("•", "").strip()
                         if timestamp_pattern.match(clean_txt):
@@ -556,32 +565,40 @@ async def scrape_posts_page(page, user_location: str = ""):
             # 4. Extract location from post content
             post_location = extract_location_from_content(content, user_location)
 
-            # 5. Generate post link using interactive copy with direct activity feed fallback
-            fallback_link = author_link
-            if author_link:
-                if "/in/" in author_link:
-                    if not author_link.endswith("/"):
-                        author_link_slashed = author_link + "/"
-                    else:
-                        author_link_slashed = author_link
-                    fallback_link = author_link_slashed + "recent-activity/all/"
-            
-            link = await get_post_link_interactive(page, card, fallback_link)
+            # 5. Extract direct activity post link
+            link = ""
+            all_links = await card.query_selector_all('a[href*="urn%3Ali%3Aactivity"], a[href*="urn:li:activity"], a[href*="/feed/update/"]')
+            for al in all_links:
+                h = await al.get_attribute("href") or ""
+                m = re.search(r"urn(?::|%3A)li(?::|%3A)activity(?::|%3A)(\d+)", h)
+                if m:
+                    link = f"https://www.linkedin.com/feed/update/urn:li:activity:{m.group(1)}/"
+                    break
+                elif "/feed/update/" in h:
+                    link = h.split("?")[0]
+                    break
 
-            if author != "Unknown Author" or content:
-                results.append({
-                    "author": author,
-                    "content_preview": content[:300],
-                    "link": link,
-                    "posted_time": posted,
-                    "location": post_location,
-                })
+            if not link:
+                fallback = author_link or page.url
+                link = await get_post_link_interactive(page, card, fallback)
+
+            if link in seen_links:
+                continue
+            seen_links.add(link)
+
+            results.append({
+                "author": author,
+                "content_preview": content[:400],
+                "link": link,
+                "posted_time": posted,
+                "location": post_location,
+            })
         except Exception as e:
             print(f"[linkedin_live_browser] Error parsing post card: {e}")
             continue
 
     if filtered_count:
-        print(f"[linkedin_live_browser] Filtered {filtered_count} job-seeker posts (not recruiter posts).")
+        print(f"[linkedin_live_browser] Filtered {filtered_count} off-target/job-seeker posts.")
     return results
 
 
@@ -657,42 +674,38 @@ async def main():
 
         try:
             while True:
-                # 1. Send active heartbeat
-
-                # For Naukri/Wellfound: check auth on their page
+                # 1. Check authentication status
+                cookies = await context.cookies()
                 auth_needed = False
-                if platform in ("naukri", "all") and page_naukri:
-                    if page_naukri.url == "about:blank":
+
+                if platform in ("linkedin", "all"):
+                    has_li_cookie = any(c.get("name") == "li_at" and c.get("value") for c in cookies)
+                    for pg in [p for p in [page_jobs, page_posts] if p]:
+                        url_str = pg.url
+                        if "checkpoint" in url_str or "authwall" in url_str or "login" in url_str:
+                            auth_needed = True
+                            break
+                    if not has_li_cookie:
                         auth_needed = True
-                    elif any(k in page_naukri.url for k in ("login", "signup", "checkpoint")):
+
+                if platform in ("naukri", "all") and page_naukri:
+                    if any(k in page_naukri.url for k in ("login", "signup", "checkpoint")):
                         auth_needed = True
 
                 if platform in ("wellfound", "all") and page_wellfound:
-                    if page_wellfound.url == "about:blank":
-                        auth_needed = True
-                    elif any(k in page_wellfound.url for k in ("login", "signup", "checkpoint")):
-                        auth_needed = True
-
-                # Check LinkedIn pages (for linkedin / all mode)
-                if platform in ("linkedin", "all"):
-                    for pg in [p for p in [page_jobs, page_posts] if p]:
-                        url_str = pg.url
-                        if "login" in url_str or "checkpoint" in url_str or "signup" in url_str:
-                            auth_needed = True
-                            break
-                    if page_jobs and page_jobs.url == "about:blank":
+                    if any(k in page_wellfound.url for k in ("login", "signup", "checkpoint")):
                         auth_needed = True
 
                 if auth_needed:
                     print(f"[scraper:{platform}] Status: Auth Required. Waiting for user login...")
                     post_to_backend(heartbeat_url, {"status": "auth_required"}, token)
-                    # Open the platform's homepage for login
-                    if page_naukri and page_naukri.url in ("about:blank", ""):
+                    # Open the platform's homepage or login for user
+                    if platform in ("linkedin", "all") and page_jobs and "linkedin.com" not in page_jobs.url:
+                        await page_jobs.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+                    if page_naukri and "naukri.com" not in page_naukri.url:
                         await page_naukri.goto("https://www.naukri.com", wait_until="domcontentloaded")
-                    if page_wellfound and page_wellfound.url in ("about:blank", ""):
+                    if page_wellfound and "wellfound.com" not in page_wellfound.url:
                         await page_wellfound.goto("https://wellfound.com", wait_until="domcontentloaded")
-                    if page_jobs and page_jobs.url in ("about:blank", ""):
-                        await page_jobs.goto("https://www.linkedin.com", wait_until="domcontentloaded")
                     await asyncio.sleep(5)
                     continue
 
@@ -759,7 +772,7 @@ async def main():
                             print(f"[scraper:{platform}] LinkedIn Jobs navigation failed: {goto_err}")
                             scraped_jobs = []
                         else:
-                            if "login" in page_jobs.url or "checkpoint" in page_jobs.url:
+                            if "login" in page_jobs.url or "checkpoint" in page_jobs.url or "authwall" in page_jobs.url:
                                 auth_redirected = True
                                 break
                             scraped_jobs = await scrape_jobs_page(page_jobs)
@@ -780,7 +793,7 @@ async def main():
                             print(f"[scraper:{platform}] LinkedIn Posts navigation failed: {goto_err}")
                             scraped_posts = []
                         else:
-                            if "login" in page_posts.url or "checkpoint" in page_posts.url:
+                            if "login" in page_posts.url or "checkpoint" in page_posts.url or "authwall" in page_posts.url:
                                 auth_redirected = True
                                 break
                             scraped_posts = await scrape_posts_page(page_posts, user_location=user_preferred_location)

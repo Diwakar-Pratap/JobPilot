@@ -293,10 +293,10 @@ async def sync_live_jobs(
     background_tasks.add_task(send_alerts_bg, job_ids, current_user.id)
     from utils.excel_exporter import auto_export_scraped_jobs_to_excel
     import asyncio
-    asyncio.create_task(auto_export_scraped_jobs_to_excel(current_user.id))
+    relevant_count = len(validated_jobs) - filtered_count
     return {
         "message": (
-            f"Successfully synced {len(relevant_jobs)} relevant LinkedIn jobs "
+            f"Successfully synced {relevant_count} relevant LinkedIn jobs "
             f"({filtered_count} filtered by AI). {new_jobs_count} new jobs added."
         )
     }

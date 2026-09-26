@@ -1,16 +1,17 @@
 import React from 'react';
 
 export const PROVIDERS = [
-  { id: 'gemini', name: 'Google Gemini', emoji: '✨', model: 'gemini-2.0-flash', badge: 'Free', badgeColor: '#06d6a0', desc: 'Best free option. Fast, smart, 1M token context. Recommended for most users.', keyUrl: 'https://aistudio.google.com/apikey', keyHint: 'AIza...' },
-  { id: 'groq', name: 'Groq', emoji: '⚡', model: 'llama-3.1-70b-versatile', badge: 'Free', badgeColor: '#06d6a0', desc: 'Ultra-fast inference. Llama 3.1 70B running on Groq silicon.', keyUrl: 'https://console.groq.com/keys', keyHint: 'gsk_...' },
+  { id: 'gemini', name: 'Google Gemini', emoji: '✨', model: 'gemini-3.5-flash', badge: 'Free', badgeColor: '#06d6a0', desc: 'Best free option. Fast, smart, high quota. Recommended for all users.', keyUrl: 'https://aistudio.google.com/apikey', keyHint: 'AIza...' },
+  { id: 'nvidia', name: 'NVIDIA NIM', emoji: '🖥️', model: 'nvidia/nemotron-3-super-120b-a12b', badge: 'Free Credits', badgeColor: '#06d6a0', desc: 'NVIDIA inference platform. Free credits for powerful open models.', keyUrl: 'https://build.nvidia.com/', keyHint: 'nvapi-...' },
+  { id: 'groq', name: 'Groq', emoji: '⚡', model: 'llama-3.3-70b-versatile', badge: 'Free', badgeColor: '#06d6a0', desc: 'Ultra-fast inference. Llama 3.3 70B running on Groq silicon.', keyUrl: 'https://console.groq.com/keys', keyHint: 'gsk_...' },
   { id: 'openai', name: 'OpenAI', emoji: '🤖', model: 'gpt-4o-mini', badge: 'Paid', badgeColor: '#f59e0b', desc: 'GPT-4o Mini. High quality, best for complex resume parsing.', keyUrl: 'https://platform.openai.com/api-keys', keyHint: 'sk-...' },
-  { id: 'nvidia', name: 'NVIDIA NIM', emoji: '🖥️', model: 'llama-3.1-70b', badge: 'Free', badgeColor: '#06d6a0', desc: 'NVIDIA inference platform. Free credits for powerful open models.', keyUrl: 'https://build.nvidia.com/', keyHint: 'nvapi-...' },
 ];
 
 export interface AiProviderFormProps {
   profile: any;
   selectedProvider: string; setSelectedProvider: (v: string) => void;
   aiKey: string; setAiKey: (v: string) => void;
+  aiModel?: string; setAiModel?: (v: string) => void;
   saving: string;
   saveAIProvider: () => void;
   testingAI: boolean;
@@ -35,16 +36,53 @@ export const AiProviderForm: React.FC<AiProviderFormProps> = ({
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div className="premium-card" style={{ padding: '28px' }}>
-        <h2 className="section-title" style={{ marginBottom: '8px' }}>AI Provider</h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-          Choose your AI engine for resume parsing, job matching, and smart search.
-          {profile?.has_ai_key && <span style={{ color: '#34d399', marginLeft: '8px', fontWeight: 600 }}>● Connected</span>}
+        <h2 className="section-title" style={{ marginBottom: '8px' }}>AI Provider Configuration</h2>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
+          Select and configure your AI engine for resume parsing, job matching, and automated outreach.
+          {profile?.has_ai_key && <span style={{ color: '#34d399', marginLeft: '8px', fontWeight: 600 }}>● Active & Connected</span>}
         </p>
+
+        {/* Tab Navigation for Providers */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '14px', marginBottom: '20px', overflowX: 'auto' }}>
+          {PROVIDERS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => {
+                setSelectedProvider(p.id);
+                if (setAiModel) setAiModel(p.model);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: 600,
+                fontFamily: "'Space Grotesk', sans-serif",
+                cursor: 'pointer',
+                background: selectedProvider === p.id ? 'rgba(124,110,247,0.18)' : 'rgba(255,255,255,0.02)',
+                border: selectedProvider === p.id ? '1px solid rgba(124,110,247,0.45)' : '1px solid rgba(255,255,255,0.06)',
+                color: selectedProvider === p.id ? '#ffffff' : 'var(--text-muted)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>{p.emoji}</span>
+              <span>{p.name}</span>
+              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', background: `${p.badgeColor}22`, color: p.badgeColor, fontWeight: 700 }}>
+                {p.badge}
+              </span>
+            </button>
+          ))}
+        </div>
 
         {/* Provider cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
           {PROVIDERS.map(p => (
-            <button key={p.id} onClick={() => setSelectedProvider(p.id)}
+            <button key={p.id} onClick={() => {
+              setSelectedProvider(p.id);
+              if (setAiModel) setAiModel(p.model);
+            }}
               style={{
                 padding: '16px', borderRadius: '14px', cursor: 'pointer', textAlign: 'left',
                 background: selectedProvider === p.id ? 'rgba(124,110,247,0.1)' : 'rgba(255,255,255,0.03)',
@@ -69,7 +107,7 @@ export const AiProviderForm: React.FC<AiProviderFormProps> = ({
           ))}
         </div>
 
-        {/* API Key input */}
+        {/* API Key and Model configuration */}
         {(() => {
           const prov = PROVIDERS.find(p => p.id === selectedProvider)!;
           return (
@@ -78,10 +116,10 @@ export const AiProviderForm: React.FC<AiProviderFormProps> = ({
                 <label style={labelStyle}>{prov.emoji} {prov.name} API Key</label>
                 <a href={prov.keyUrl} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: '11px', color: '#7c6ef7', textDecoration: 'none', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
-                  Get free key ↗
+                  Get {prov.name} key ↗
                 </a>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
                 <input style={{ ...inputStyle, flex: 1, fontFamily: 'monospace', fontSize: '13px' }}
                   type="password" value={aiKey} onChange={e => setAiKey(e.target.value)}
                   placeholder={prov.keyHint}
@@ -92,7 +130,23 @@ export const AiProviderForm: React.FC<AiProviderFormProps> = ({
                   {saving === 'ai' ? '⏳ Testing...' : '✓ Save & Test'}
                 </button>
               </div>
-              <p style={{ fontSize: '11px', color: '#3d4a70', marginTop: '8px' }}>Key is encrypted and stored securely. Never shared with third parties.</p>
+
+              {/* Optional Model Input */}
+              <div>
+                <label style={labelStyle}>Model Identifier</label>
+                <input
+                  style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '13px' }}
+                  type="text"
+                  value={aiModel || ''}
+                  onChange={e => setAiModel && setAiModel(e.target.value)}
+                  placeholder={prov.model}
+                />
+                <p style={{ fontSize: '11px', color: '#6b7280', marginTop: '5px' }}>
+                  Default model: <code style={{ color: '#c4b5fd' }}>{prov.model}</code>
+                </p>
+              </div>
+
+              <p style={{ fontSize: '11px', color: '#3d4a70', marginTop: '10px' }}>Key is encrypted and stored securely. Never shared with third parties.</p>
             </div>
           );
         })()}
